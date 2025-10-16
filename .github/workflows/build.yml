@@ -8,51 +8,62 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Baixar código
+    - name: 📦 Baixar código
       uses: actions/checkout@v4
 
-    - name: Configurar Python
+    - name: 🐍 Configurar Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
 
-    - name: Instalar dependências
+    - name: ⚙️ Instalar dependências Python
       run: |
         python -m pip install --upgrade pip
-        pip install buildozer cython virtualenv
+        pip install --upgrade buildozer cython virtualenv
 
-    - name: Instalar Buildozer e Android SDK
+    - name: 🧰 Instalar Buildozer e Android SDK automaticamente
       run: |
+        set -e
         sudo apt update
         sudo apt install -y zip unzip wget openjdk-17-jdk
 
-        # Criar pastas para o SDK
-        mkdir -p $HOME/android-sdk/cmdline-tools
-        cd $HOME/android-sdk/cmdline-tools
-
-        # Baixar o pacote de ferramentas
-        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
-        unzip tools.zip -d cmdline-tools
-        mv cmdline-tools latest
-
-        # Configurar variáveis
+        # Diretórios
         export ANDROID_HOME=$HOME/android-sdk
+        mkdir -p $ANDROID_HOME/cmdline-tools
+
+        echo "📥 Baixando ferramentas do Android SDK..."
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+        unzip -q tools.zip -d $ANDROID_HOME/cmdline-tools
+
+        # Detectar e renomear pasta correta
+        DIR=$(find $ANDROID_HOME/cmdline-tools -maxdepth 1 -type d ! -path $ANDROID_HOME/cmdline-tools | head -n 1)
+        mv "$DIR" "$ANDROID_HOME/cmdline-tools/latest" || echo "⚠️ Diretório já correto."
+
+        # Variáveis de ambiente
         export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 
-        echo "Verificando sdkmanager..."
+        echo "🔍 Verificando sdkmanager..."
+        if [ ! -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+          echo "❌ sdkmanager não encontrado. Tentando corrigir estrutura..."
+          mkdir -p $ANDROID_HOME/cmdline-tools/latest/bin
+          mv $ANDROID_HOME/cmdline-tools/latest/* $ANDROID_HOME/cmdline-tools/latest/bin/ || true
+        fi
+
+        echo "✅ Conteúdo do bin:"
         ls -la $ANDROID_HOME/cmdline-tools/latest/bin
 
-        # Aceitar licenças e instalar SDKs necessários
-        yes | sdkmanager --licenses
-        yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;34.0.0"
+        echo "📦 Instalando licenças e ferramentas..."
+        yes | sdkmanager --licenses || true
+        yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;34.0.0" || true
 
-    - name: Gerar APK
+    - name: 🧱 Gerar APK
       run: |
-        unzip analista_esportivo_app_package.zip -d .
+        unzip -q analista_esportivo_app_package.zip -d .
         cd analista_esportivo_app_package
-        buildozer android debug
+        echo "🚀 Iniciando build do APK..."
+        buildozer android debug || (echo "⚠️ Tentando novamente com limpeza..." && buildozer android clean && buildozer android debug)
 
-    - name: Fazer upload do APK
+    - name: 📤 Fazer upload do APK
       uses: actions/upload-artifact@v4
       with:
         name: AnalistaEsportivoApp
