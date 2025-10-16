@@ -1,4 +1,4 @@
-name: Build Analista Esportivo APK
+name: Construir Analista Esportivo APK
 
 on:
   workflow_dispatch:
@@ -6,6 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Baixar código
         uses: actions/checkout@v4
@@ -20,13 +21,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install buildozer cython virtualenv
 
-      - name: Instalar Buildozer
+      - name: Instalar Buildozer e JDK
         run: |
-          pip install buildozer
-          sudo apt update && sudo apt install -y zip unzip openjdk-17-jdk
+          sudo apt update
+          sudo apt install -y build-essential git zip unzip openjdk-17-jdk
 
       - name: Gerar APK
         run: |
+          unzip analista_esportivo_app_package.zip -d .
           cd analista_esportivo_app_package
           buildozer android debug
 
