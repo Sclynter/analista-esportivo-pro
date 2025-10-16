@@ -31,10 +31,18 @@ jobs:
         unzip tools.zip -d latest
         export ANDROID_HOME=$HOME/android-sdk
         export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;34.0.0"
-        # Instalar AIDL explicitamente
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;36.0.1"
+
+        # Verifica se sdkmanager existe, senão corrige o PATH
+        if [ ! -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/bin
+        fi
+
+        echo "✅ Caminho do sdkmanager:"
+        which sdkmanager || echo "⚠️ sdkmanager ainda não encontrado"
+
+        # Instalar licenças e ferramentas
+        yes | sdkmanager --licenses
+        yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;34.0.0" "build-tools;36.0.1"
 
     - name: Gerar APK
       run: |
