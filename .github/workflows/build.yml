@@ -27,34 +27,27 @@ jobs:
         sudo apt update
         sudo apt install -y zip unzip wget openjdk-17-jdk
 
-        # Diretórios
         export ANDROID_HOME=$HOME/android-sdk
-        mkdir -p $ANDROID_HOME/cmdline-tools
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 
-        echo "📥 Baixando ferramentas do Android SDK..."
+        mkdir -p $ANDROID_HOME/cmdline-tools
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
         unzip -q tools.zip -d $ANDROID_HOME/cmdline-tools
 
-        # Detectar e renomear pasta correta
         DIR=$(find $ANDROID_HOME/cmdline-tools -maxdepth 1 -type d ! -path $ANDROID_HOME/cmdline-tools | head -n 1)
-        mv "$DIR" "$ANDROID_HOME/cmdline-tools/latest" || echo "⚠️ Diretório já correto."
+        mv "$DIR" "$ANDROID_HOME/cmdline-tools/latest" || echo "⚠️ Estrutura já correta."
 
-        # Variáveis de ambiente
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+        yes | sdkmanager --licenses || true
+        yes | sdkmanager --install "platform-tools" "platforms;android-33" "build-tools;34.0.0"
 
-        echo "🔍 Verificando sdkmanager..."
-        if [ ! -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-          echo "❌ sdkmanager não encontrado. Tentando corrigir estrutura..."
-          mkdir -p $ANDROID_HOME/cmdline-tools/latest/bin
-          mv $ANDROID_HOME/cmdline-tools/latest/* $ANDROID_HOME/cmdline-tools/latest/bin/ || true
+        # Corrige possível ausência do aidd
+        if [ ! -f "$ANDROID_HOME/build-tools/34.0.0/aidd" ]; then
+          echo "🔧 Criando link simbólico para aidd..."
+          ln -s $ANDROID_HOME/build-tools/34.0.0/aidl $ANDROID_HOME/build-tools/34.0.0/aidd || true
         fi
 
-        echo "✅ Conteúdo do bin:"
-        ls -la $ANDROID_HOME/cmdline-tools/latest/bin
-
-        echo "📦 Instalando licenças e ferramentas..."
-        yes | sdkmanager --licenses || true
-        yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;34.0.0" || true
+        echo "✅ SDK configurado com sucesso"
+        ls -R $ANDROID_HOME/build-tools/34.0.0 || true
 
     - name: 🧱 Gerar APK
       run: |
