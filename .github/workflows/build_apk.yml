@@ -16,14 +16,14 @@ jobs:
       - name: Instalar dependências base
         run: |
           sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-17-jdk python3 python3-pip libffi-dev libssl-dev
+          sudo apt-get install -y git zip unzip openjdk-17-jdk python3 python3-pip libffi-dev libssl-dev curl
 
       - name: Instalar Buildozer e dependências Python
         run: |
           python3 -m pip install --upgrade pip
           pip install buildozer cython virtualenv
 
-      - name: Configurar Android SDK
+      - name: Baixar e configurar Android Commandline Tools
         run: |
           mkdir -p $HOME/android-sdk/cmdline-tools
           cd $HOME/android-sdk/cmdline-tools
@@ -31,7 +31,6 @@ jobs:
           unzip sdk-tools.zip
           mv cmdline-tools latest
           rm sdk-tools.zip
-
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
           echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
@@ -40,70 +39,45 @@ jobs:
         run: |
           export ANDROID_SDK_ROOT=$HOME/android-sdk
           export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
-
           yes | sdkmanager --licenses || true
-          mkdir -p "$ANDROID_SDK_ROOT/licenses"
-          echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55" > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
-          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
+          sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "platforms;android-34" "build-tools;33.0.0" "build-tools;33.0.1" "build-tools;34.0.0" "build-tools;35.0.0" "build-tools;36.0.0" || true
 
-          sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
-            "platform-tools" \
-            "cmdline-tools;latest" \
-            "platforms;android-34" \
-            "build-tools;30.0.3" \
-            "build-tools;31.0.0" \
-            "build-tools;32.0.0" \
-            "build-tools;33.0.2" \
-            "build-tools;34.0.0" \
-            "build-tools;35.0.0" \
-            "build-tools;36.1.0"
-
-      - name: Detectar automaticamente o AIDL
+      - name: Detectar automaticamente o AIDL (busca completa)
         run: |
           export ANDROID_SDK_ROOT=$HOME/android-sdk
-          AIDL_PATH=""
-          for v in 36.1.0 35.0.0 34.0.0 33.0.2 32.0.0 31.0.0 30.0.3; do
-            if [ -f "$ANDROID_SDK_ROOT/build-tools/$v/aidl" ]; then
-              echo "✅ AIDL encontrado em build-tools/$v"
-              AIDL_PATH="$ANDROID_SDK_ROOT/build-tools/$v"
-              echo "ANDROID_BUILD_TOOLS_VERSION=$v" >> $GITHUB_ENV
-              break
-            fi
-          done
+          echo "🔍 Procurando arquivo 'aidl' em todo o SDK..."
+          AIDL_PATH=$(find $ANDROID_SDK_ROOT -type f -name "aidl" | head -n 1 || true)
+
           if [ -z "$AIDL_PATH" ]; then
-            echo "❌ Nenhuma versão válida do AIDL foi encontrada."
+            echo "❌ Nenhum arquivo 'aidl' encontrado no SDK."
+            echo "Conteúdo do diretório build-tools:"
+            ls -R $ANDROID_SDK_ROOT/build-tools || true
             exit 1
+          else
+            echo "✅ AIDL encontrado em: $AIDL_PATH"
+            AIDL_VERSION=$(echo $AIDL_PATH | grep -oE 'build-tools/[^/]*' | cut -d'/' -f2)
+            echo "ANDROID_BUILD_TOOLS_VERSION=$AIDL_VERSION" >> $GITHUB_ENV
+            echo "✅ Versão detectada: $AIDL_VERSION"
           fi
 
-      - name: Corrigir buildozer.spec
+      - name: Corrigir buildozer.spec (forçar caminho do SDK)
         run: |
           if grep -q "android.sdk_path" buildozer.spec; then
             sed -i "s|android.sdk_path = .*|android.sdk_path = $HOME/android-sdk|" buildozer.spec
           else
             echo "android.sdk_path = $HOME/android-sdk" >> buildozer.spec
           fi
-          if grep -q "android.build_tools_version" buildozer.spec; then
-            sed -i "s|android.build_tools_version = .*|android.build_tools_version = $ANDROID_BUILD_TOOLS_VERSION|" buildozer.spec
-          else
-            echo "android.build_tools_version = $ANDROID_BUILD_TOOLS_VERSION" >> buildozer.spec
-          fi
 
       - name: Preparar projeto
         run: |
           if [ -f "./analista_esportivo_app_package.zip" ]; then
             unzip -o analista_esportivo_app_package.zip
-            echo "Pacote do app descompactado com sucesso!"
-          else
-            echo "Nenhum pacote ZIP encontrado, usando os arquivos diretos do repositório."
+            echo "📦 Pacote do app descompactado com sucesso!"
           fi
 
       - name: Construir APK com Buildozer
         run: |
-          buildozer android debug || {
-            echo "⚠️ Buildozer falhou uma vez, limpando cache e tentando novamente..."
-            buildozer android clean
-            buildozer android debug
-          }
+          buildozer android debug
 
       - name: Upload do APK
         uses: actions/upload-artifact@v4
