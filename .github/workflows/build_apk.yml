@@ -35,7 +35,7 @@ jobs:
       - name: Construir APK com Buildozer (Docker)
         run: |
           docker run --rm -v "$(pwd)":/home/user/app \
-            kivy/buildozer:stable \
+            kivy/buildozer:latest \
             buildozer android debug
 
       - name: Upload do APK
