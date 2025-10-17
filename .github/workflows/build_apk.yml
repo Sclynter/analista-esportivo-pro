@@ -1,18 +1,17 @@
-name: Build APK (Auto Fix)
+name: Build APK (Auto Fix - Stable)
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        method: [local, docker, fallback]
-      fail-fast: false
+        mode: [docker, local, fallback]
 
     steps:
       - name: Checkout código
@@ -20,51 +19,45 @@ jobs:
 
       - name: Instalar dependências básicas
         run: |
-          sudo apt update -y
-          sudo apt install -y python3 python3-pip git unzip openjdk-17-jdk wget zip
-          pip install --upgrade pip setuptools wheel
+          sudo apt update
+          sudo apt install -y python3 python3-pip python3-setuptools python3-venv git zip unzip openjdk-17-jdk
 
-      - name: Preparar projeto (descompactar ZIP se existir)
+      - name: Instalar Buildozer e dependências
         run: |
-          if [ -f analista_esportivo_app_package.zip ]; then
-            unzip -o analista_esportivo_app_package.zip -d ./projeto
+          pip install --upgrade pip wheel
+          pip install buildozer cython virtualenv
+
+      - name: Instalar SDK e NDK manualmente
+        run: |
+          mkdir -p $HOME/android-sdk
+          cd $HOME/android-sdk
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O cmdline-tools.zip
+          unzip cmdline-tools.zip -d cmdline-tools
+          mv cmdline-tools/cmdline-tools cmdline-tools/latest
+          export ANDROID_HOME=$HOME/android-sdk
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+          yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses
+          yes | sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-31" "build-tools;31.0.0" "ndk;21.4.7075529"
+
+      - name: Descompactar projeto ZIP
+        run: |
+          if [ -f "analista_esportivo_app_package.zip" ]; then
+            echo "📦 Descompactando projeto..."
+            unzip -o analista_esportivo_app_package.zip -d ./app_project
           fi
 
-      - name: Instalar Buildozer
+      - name: Compilar APK com Buildozer
         run: |
-          pip install buildozer cython kivy pandas requests lxml
+          cd app_project
+          export ANDROIDSDK=$HOME/android-sdk
+          export ANDROIDNDK=$ANDROIDSDK/ndk/21.4.7075529
+          export PATH=$ANDROIDSDK/platform-tools:$ANDROIDSDK/cmdline-tools/latest/bin:$PATH
+          echo "🚀 Iniciando build com modo: ${{ matrix.mode }}"
+          buildozer android debug
 
-      - name: Configurar SDK e NDK
-        run: |
-          mkdir -p $HOME/android-sdk/cmdline-tools
-          cd $HOME/android-sdk/cmdline-tools
-          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -o commandlinetools-linux-11076708_latest.zip -d latest
-          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk "platform-tools" "platforms;android-31" "build-tools;33.0.2" "ndk;21.4.7075529"
-
-      - name: Tentar build (${{ matrix.method }})
-        run: |
-          cd projeto
-          case "${{ matrix.method }}" in
-            local)
-              echo "===> Tentando build local..."
-              buildozer android debug || exit 1
-              ;;
-            docker)
-              echo "===> Tentando build com Docker..."
-              docker run --rm -v "$(pwd)":/home/user/app kivy/buildozer bash -c "buildozer android debug" || exit 1
-              ;;
-            fallback)
-              echo "===> Tentando fallback (reinstalar dependências e tentar novamente)..."
-              pip install --upgrade buildozer
-              buildozer android debug || exit 1
-              ;;
-          esac
-
-      - name: Upload do APK (se encontrado)
+      - name: Upload do APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Analista-Esportivo-APK
-          path: |
-            projeto/bin/*.apk
+          path: app_project/bin/*.apk
