@@ -1,4 +1,4 @@
-name: Build APK with Buildozer (Auto SDK Finder)
+name: Build APK with Buildozer (Auto SDK + Licenças)
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
           python3 -m pip install --upgrade pip
           pip install buildozer cython virtualenv
 
-      - name: Baixar e configurar Android Commandline Tools
+      - name: Configurar Android SDK
         run: |
           mkdir -p $HOME/android-sdk/cmdline-tools
           cd $HOME/android-sdk/cmdline-tools
@@ -31,15 +31,21 @@ jobs:
           unzip sdk-tools.zip
           mv cmdline-tools latest
           rm sdk-tools.zip
+
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
           echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
-      - name: Instalar SDKs necessários e aceitar licenças
+      - name: Aceitar licenças e instalar SDKs necessários
         run: |
           export ANDROID_SDK_ROOT=$HOME/android-sdk
           export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
-          yes | sdkmanager --licenses
+
+          yes | sdkmanager --licenses || true
+          mkdir -p "$ANDROID_SDK_ROOT/licenses"
+          echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55" > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
+          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
+
           sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
             "platform-tools" \
             "cmdline-tools;latest" \
@@ -69,7 +75,7 @@ jobs:
             exit 1
           fi
 
-      - name: Corrigir buildozer.spec (SDK e Build Tools)
+      - name: Corrigir buildozer.spec
         run: |
           if grep -q "android.sdk_path" buildozer.spec; then
             sed -i "s|android.sdk_path = .*|android.sdk_path = $HOME/android-sdk|" buildozer.spec
@@ -94,7 +100,7 @@ jobs:
       - name: Construir APK com Buildozer
         run: |
           buildozer android debug || {
-            echo "⚠️ Buildozer falhou uma vez, tentando limpar cache e reconstruir..."
+            echo "⚠️ Buildozer falhou uma vez, limpando cache e tentando novamente..."
             buildozer android clean
             buildozer android debug
           }
