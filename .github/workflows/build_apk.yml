@@ -1,4 +1,4 @@
-name: Construir APK Analista Esportivo (Fix sdkmanager definitivo)
+name: Build Analista Esportivo APK (sdkmanager fix absoluto)
 
 on:
   workflow_dispatch:
@@ -24,29 +24,29 @@ jobs:
     - name: Baixar e configurar Android Commandline Tools
       run: |
         export ANDROID_SDK_ROOT=$HOME/android-sdk
-        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-        cd "$ANDROID_SDK_ROOT/cmdline-tools"
+        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+        cd "$ANDROID_SDK_ROOT/cmdline-tools/latest"
         wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
-        unzip cmdtools.zip -d latest
+        unzip -o cmdtools.zip
         rm cmdtools.zip
+        chmod +x bin/sdkmanager
         echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
         echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
-    - name: Instalar SDKs necessários
+    - name: Instalar SDKs necessários (usando caminho absoluto)
       run: |
-        sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses || true
-        sdkmanager --sdk_root=$ANDROID_SDK_ROOT --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk --licenses || true
+        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
     - name: Verificar AIDL
       run: |
         ls -la $HOME/android-sdk/build-tools/34.0.0/ || true
 
-    - name: Corrigir buildozer.spec (forçar versão do build-tools)
+    - name: Corrigir buildozer.spec
       run: |
         if [ -f buildozer.spec ]; then
           sed -i 's|^#*android\.sdk_path.*|android.sdk_path = /home/runner/android-sdk|' buildozer.spec
           sed -i 's|^#*android\.api.*|android.api = 34|' buildozer.spec
-          sed -i 's|^#*android\.minapi.*|android.minapi = 21|' buildozer.spec
           sed -i 's|^#*android\.build_tools_version.*|android.build_tools_version = 34.0.0|' buildozer.spec
         fi
 
@@ -68,5 +68,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: AnalistaEsportivo-APK
-        path: |
-          **/bin/*.apk
+        path: "**/bin/*.apk"
