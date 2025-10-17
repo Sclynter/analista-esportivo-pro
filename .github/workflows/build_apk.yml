@@ -1,4 +1,4 @@
-name: Build APK with Buildozer (Docker - Final)
+name: Build APK with Buildozer (Docker)
 
 on:
   push:
@@ -12,34 +12,31 @@ jobs:
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
-        # O código está em $GITHUB_WORKSPACE (diretório padrão)
 
-      - name: Instalar Docker e Dependências Básicas (para garantir)
-        # Instalamos o Docker, embora geralmente já esteja lá.
+      - name: Instalar dependências básicas
         run: |
           sudo apt-get update
-          sudo apt-get install -y zip unzip git python3 python3-pip docker.io
+          sudo apt-get install -y zip unzip git python3 python3-pip
 
-      - name: Preparar projeto (Descompactar)
+      - name: Preparar projeto (Descompactar se existir)
         run: |
           if [ -f "./analista_esportivo_app_package.zip" ]; then
             unzip -o analista_esportivo_app_package.zip
             echo "📦 Pacote do app descompactado com sucesso!"
           fi
 
-      # 🔑 CRÍTICO: Roda o container, mapeando o diretório de trabalho atual ($GITHUB_WORKSPACE)
-      # para o /home/kivy, que é o diretório de trabalho padrão do usuário kivy dentro do container.
+      - name: Desativar BuildKit globalmente
+        run: |
+          echo "DOCKER_BUILDKIT=0" | sudo tee -a /etc/environment
+          echo "COMPOSE_DOCKER_CLI_BUILD=0" | sudo tee -a /etc/environment
+          export DOCKER_BUILDKIT=0
+          export COMPOSE_DOCKER_CLI_BUILD=0
+
       - name: Construir APK com Buildozer (Docker)
         run: |
-          # O ${{ github.workspace }} é o caminho absoluto do seu projeto no runner.
-          # O usuário kivy dentro do container fará o build com permissões corretas.
-          docker run --rm \
-            -v "${{ github.workspace }}:/home/kivy/app" \
-            -w /home/kivy/app \
+          docker run --rm -v "$(pwd)":/home/user/app \
             kivy/buildozer:stable \
             buildozer android debug
-            
-      # ⚠️ Nota: O APK será gerado em 'bin/' no diretório raiz do seu repositório.
 
       - name: Upload do APK
         uses: actions/upload-artifact@v4
