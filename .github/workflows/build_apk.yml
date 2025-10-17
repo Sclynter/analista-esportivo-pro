@@ -2,8 +2,9 @@ name: Build APK with Buildozer (no Docker)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -14,48 +15,63 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
+      # Cache para SDK e Buildozer (acelera builds futuros)
+      - name: Cache Android SDK e Buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            ~/android-sdk
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('**/buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
       - name: Instalar dependências básicas
         run: |
-          sudo apt update
-          sudo apt install -y python3 python3-pip unzip zip git openjdk-17-jdk wget
-
-      - name: Baixar e configurar Android SDK (sdkmanager)
-        run: |
-          mkdir -p $HOME/android-sdk
-          cd $HOME/android-sdk
-          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-          unzip cmdline-tools.zip
-          mkdir -p cmdline-tools/latest
-          mv cmdline-tools/* cmdline-tools/latest/
-          export ANDROID_SDK_ROOT=$HOME/android-sdk
-          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
-          yes | sdkmanager --licenses
-          yes | sdkmanager "platforms;android-33" "build-tools;33.0.2" "platform-tools"
-
-      - name: Instalar Buildozer e dependências Python
-        run: |
-          pip install --upgrade pip setuptools wheel
-          pip install buildozer cython virtualenv
+          sudo apt-get update -y
+          sudo apt-get install -y python3 python3-pip zip unzip git openjdk-17-jdk wget curl
 
       - name: Preparar projeto (descompactar ZIP)
         run: |
           if [ -f "./analista_esportivo_app_package.zip" ]; then
-            echo "Descompactando pacote de app..."
-            unzip -o analista_esportivo_app_package.zip
+            echo "📦 Descompactando pacote..."
+            unzip -o analista_esportivo_app_package.zip -d ./projeto
+            echo "✅ Pacote descompactado com sucesso!"
           else
-            echo "Nenhum pacote ZIP encontrado."
+            echo "❌ Arquivo ZIP não encontrado!"
+            exit 1
           fi
 
-      - name: Construir APK com Buildozer local
-        working-directory: ./analista_esportivo_app
+      - name: Baixar e configurar Android SDK
         run: |
-          export ANDROIDSDK=$HOME/android-sdk
-          export ANDROIDNDK=$HOME/.buildozer/android/platform/android-ndk-r21b
-          export PATH=$PATH:$ANDROIDSDK/platform-tools:$ANDROIDSDK/build-tools/33.0.2
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+          echo "📥 Baixando commandline tools..."
+          curl -L https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o tools.zip
+          unzip -q tools.zip
+          mkdir -p $HOME/android-sdk/cmdline-tools/latest
+          mv $HOME/android-sdk/cmdline-tools/* $HOME/android-sdk/cmdline-tools/latest/ || true
+          export ANDROID_SDK_ROOT=$HOME/android-sdk
+          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+          echo "🧾 Aceitando licenças e instalando build-tools..."
+          yes | sdkmanager --licenses || true
+          yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+
+      - name: Instalar Buildozer e dependências Python
+        run: |
+          python3 -m pip install --upgrade pip setuptools wheel
+          python3 -m pip install buildozer cython virtualenv
+
+      - name: Construir APK com Buildozer local
+        working-directory: ./projeto
+        run: |
+          export ANDROID_SDK_ROOT=$HOME/android-sdk
+          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+          echo "🚀 Iniciando compilação..."
           buildozer android debug
 
       - name: Upload do APK
         uses: actions/upload-artifact@v4
         with:
-          name: AnalistaEsportivoPro-APK
-          path: analista_esportivo_app/bin/*.apk
+          name: app-apk
+          path: projeto/bin/*.apk
