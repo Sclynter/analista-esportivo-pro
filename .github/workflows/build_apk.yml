@@ -1,68 +1,70 @@
-name: Build APK with Buildozer
+name: Build APK (Auto Fix)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Set up job
-        run: echo "🏗️ Iniciando build do APK..."
+    strategy:
+      matrix:
+        method: [local, docker, fallback]
+      fail-fast: false
 
+    steps:
       - name: Checkout código
         uses: actions/checkout@v4
 
       - name: Instalar dependências básicas
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git zip unzip python3 python3-pip openjdk-17-jdk \
-            libffi-dev libssl-dev autoconf automake libtool pkg-config \
-            zlib1g-dev libncurses5-dev libtinfo5 libstdc++6 \
-            wget curl
+          sudo apt update -y
+          sudo apt install -y python3 python3-pip git unzip openjdk-17-jdk wget zip
+          pip install --upgrade pip setuptools wheel
 
-      - name: Preparar projeto (descompactar ZIP)
+      - name: Preparar projeto (descompactar ZIP se existir)
         run: |
-          if [ -f "./analista_esportivo_app_package.zip" ]; then
-            echo "📦 Descompactando pacote..."
+          if [ -f analista_esportivo_app_package.zip ]; then
             unzip -o analista_esportivo_app_package.zip -d ./projeto
-            echo "✅ Pacote descompactado com sucesso!"
           fi
-          cd projeto
 
-      - name: Baixar e configurar Android SDK
+      - name: Instalar Buildozer
         run: |
-          echo "📥 Baixando Command Line Tools..."
+          pip install buildozer cython kivy pandas requests lxml
+
+      - name: Configurar SDK e NDK
+        run: |
           mkdir -p $HOME/android-sdk/cmdline-tools
           cd $HOME/android-sdk/cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
-          unzip -q tools.zip -d tools
-          mv tools $HOME/android-sdk/cmdline-tools/latest
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -o commandlinetools-linux-11076708_latest.zip -d latest
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk "platform-tools" "platforms;android-31" "build-tools;33.0.2" "ndk;21.4.7075529"
 
-          export ANDROID_SDK_ROOT=$HOME/android-sdk
-          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools
-
-          echo "✅ Instalando SDK e aceitando licenças..."
-          yes | sdkmanager --licenses || true
-          yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
-
-      - name: Instalar Buildozer e dependências Python
+      - name: Tentar build (${{ matrix.method }})
         run: |
-          python3 -m pip install --upgrade pip setuptools wheel
-          pip install buildozer cython virtualenv
+          cd projeto
+          case "${{ matrix.method }}" in
+            local)
+              echo "===> Tentando build local..."
+              buildozer android debug || exit 1
+              ;;
+            docker)
+              echo "===> Tentando build com Docker..."
+              docker run --rm -v "$(pwd)":/home/user/app kivy/buildozer bash -c "buildozer android debug" || exit 1
+              ;;
+            fallback)
+              echo "===> Tentando fallback (reinstalar dependências e tentar novamente)..."
+              pip install --upgrade buildozer
+              buildozer android debug || exit 1
+              ;;
+          esac
 
-      - name: Construir APK com Buildozer local
-        working-directory: ./projeto/analista_esportivo_app
-        run: |
-          export ANDROIDSDK=$HOME/android-sdk
-          export ANDROIDNDK=$HOME/.buildozer/android/platform/android-ndk-r25b
-          export PATH=$PATH:$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools
-          buildozer android debug
-
-      - name: Upload do APK
+      - name: Upload do APK (se encontrado)
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: app-android
-          path: ./projeto/analista_esportivo_app/bin/*.apk
+          name: Analista-Esportivo-APK
+          path: |
+            projeto/bin/*.apk
