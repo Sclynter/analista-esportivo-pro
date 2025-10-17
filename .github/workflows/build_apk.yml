@@ -53,6 +53,7 @@ jobs:
         echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
         echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
         echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+        echo "$ANDROID_SDK_ROOT/build-tools/34.0.0" >> $GITHUB_PATH
 
     - name: Instalar SDKs necessários (aceitar licenças automaticamente)
       run: |
@@ -64,13 +65,14 @@ jobs:
           "ndk;25.2.9519653" \
           "cmdline-tools;latest"
 
-    - name: Verificar se aidl foi instalado
+    - name: Forçar reinstalação do AIDL se necessário
       run: |
         if [ ! -f "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" ]; then
-          echo "Aidl não encontrado, reinstalando build-tools 34.0.0..."
+          echo "Aidl não encontrado — reinstalando build-tools 34.0.0..."
           sdkmanager "build-tools;34.0.0" --sdk_root="$ANDROID_SDK_ROOT"
         fi
-        find "$ANDROID_SDK_ROOT/build-tools" -type f -name aidl || echo "Aidl não encontrado!"
+        ls -la "$ANDROID_SDK_ROOT/build-tools/34.0.0/" || true
+        which aidl || echo "AIDL ainda não no PATH!"
 
     - name: Preparar projeto
       run: |
@@ -94,6 +96,7 @@ jobs:
         fi
 
         echo "Iniciando compilação do APK..."
+        export PATH="$ANDROID_SDK_ROOT/build-tools/34.0.0:$PATH"
         buildozer -v android debug
 
         echo "Verificando se o APK foi gerado..."
