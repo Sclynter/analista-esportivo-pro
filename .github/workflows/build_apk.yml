@@ -1,4 +1,4 @@
-name: Build APK with Buildozer (Otimizado)
+name: Build APK with Buildozer (Estável)
 
 on:
   push:
@@ -21,31 +21,32 @@ jobs:
       - name: Instalar Buildozer e dependências Python
         run: |
           pip install --upgrade pip
-          pip install buildozer==1.2.0 cython
+          pip install buildozer==1.2.0 cython virtualenv
 
-      # 🔄 Limpa cache antigo do Buildozer e SDK interno
+      # Limpa possíveis caches antigos do Buildozer e SDK
       - name: Limpar cache do Buildozer
         run: |
-          rm -rf .buildozer/
-          rm -rf ~/.buildozer/
-          echo "🧹 Cache do Buildozer limpo!"
+          rm -rf .buildozer
+          rm -rf ~/.buildozer
+          rm -rf $HOME/android-sdk
 
-      # ⚙️ Configura Android SDK e NDK modernos automaticamente
+      # Instalação automática e oficial do Android SDK + NDK
       - name: Configurar Android SDK (ação oficial)
         uses: android-actions/setup-android@v3
         with:
           packages: |
             build-tools;33.0.2
             platforms;android-33
+            platform-tools
             ndk;25.2.9519653
 
-      # 🧩 Corrige o caminho do SDK no buildozer.spec
+      # Garante que o caminho do SDK será o mesmo usado pelo Buildozer
       - name: Corrigir buildozer.spec
         run: |
-          sed -i "s|android.sdk_path = .*|android.sdk_path = $ANDROID_SDK_ROOT|" buildozer.spec || echo "android.sdk_path = $ANDROID_SDK_ROOT" >> buildozer.spec
-          echo "✅ Caminho do SDK ajustado: $ANDROID_SDK_ROOT"
+          sed -i "s|android.sdk_path = .*|android.sdk_path = /usr/local/lib/android/sdk|" buildozer.spec || echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
+          sed -i "s|android.ndk_path = .*|android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653|" buildozer.spec || echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
 
-      # 📦 Descompacta o pacote do app
+      # Descompacta o projeto, se for enviado em ZIP
       - name: Preparar projeto
         run: |
           if [ -f "./analista_esportivo_app_package.zip" ]; then
@@ -53,12 +54,11 @@ jobs:
             echo "📦 Pacote do app descompactado com sucesso!"
           fi
 
-      # 🏗️ Constrói o APK
+      # Compila o APK
       - name: Construir APK com Buildozer
-        run: |
-          buildozer android debug
+        run: buildozer android debug
 
-      # 📤 Faz upload do APK gerado
+      # Faz upload do APK gerado
       - name: Upload do APK
         uses: actions/upload-artifact@v4
         with:
