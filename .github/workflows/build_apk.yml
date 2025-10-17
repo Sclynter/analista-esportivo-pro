@@ -1,4 +1,4 @@
-name: Build APK with Buildozer (Docker)
+name: Build APK with Buildozer (Docker - Final)
 
 on:
   push:
@@ -12,26 +12,34 @@ jobs:
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
+        # O código está em $GITHUB_WORKSPACE (diretório padrão)
 
-      - name: Instalar dependências base
+      - name: Instalar Docker e Dependências Básicas (para garantir)
+        # Instalamos o Docker, embora geralmente já esteja lá.
         run: |
           sudo apt-get update
-          sudo apt-get install -y zip unzip git python3 python3-pip
+          sudo apt-get install -y zip unzip git python3 python3-pip docker.io
 
-      - name: Preparar projeto
+      - name: Preparar projeto (Descompactar)
         run: |
           if [ -f "./analista_esportivo_app_package.zip" ]; then
             unzip -o analista_esportivo_app_package.zip
             echo "📦 Pacote do app descompactado com sucesso!"
           fi
 
-      # 🚀 Desativa o BuildKit e usa a imagem oficial do Buildozer
-      - name: Build APK com Buildozer (Docker)
+      # 🔑 CRÍTICO: Roda o container, mapeando o diretório de trabalho atual ($GITHUB_WORKSPACE)
+      # para o /home/kivy, que é o diretório de trabalho padrão do usuário kivy dentro do container.
+      - name: Construir APK com Buildozer (Docker)
         run: |
-          export DOCKER_BUILDKIT=0
-          docker run --rm -v "$(pwd)":/home/user/app \
-            kivy/buildozer:latest \
+          # O ${{ github.workspace }} é o caminho absoluto do seu projeto no runner.
+          # O usuário kivy dentro do container fará o build com permissões corretas.
+          docker run --rm \
+            -v "${{ github.workspace }}:/home/kivy/app" \
+            -w /home/kivy/app \
+            kivy/buildozer:stable \
             buildozer android debug
+            
+      # ⚠️ Nota: O APK será gerado em 'bin/' no diretório raiz do seu repositório.
 
       - name: Upload do APK
         uses: actions/upload-artifact@v4
