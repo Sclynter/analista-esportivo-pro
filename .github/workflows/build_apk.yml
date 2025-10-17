@@ -1,63 +1,58 @@
-name: Build APK (Auto Fix - Stable)
+name: Build APK (Auto SDK Fix)
 
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch:
+    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        mode: [docker, local, fallback]
 
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
+    - name: Checkout código
+      uses: actions/checkout@v4
 
-      - name: Instalar dependências básicas
-        run: |
-          sudo apt update
-          sudo apt install -y python3 python3-pip python3-setuptools python3-venv git zip unzip openjdk-17-jdk
+    - name: Instalar dependências básicas
+      run: |
+        sudo apt update -y
+        sudo apt install -y python3 python3-pip git zip unzip openjdk-17-jdk wget
 
-      - name: Instalar Buildozer e dependências
-        run: |
-          pip install --upgrade pip wheel
-          pip install buildozer cython virtualenv
+    - name: Instalar SDK e NDK manualmente
+      run: |
+        mkdir -p $HOME/android-sdk/cmdline-tools
+        cd $HOME/android-sdk/cmdline-tools
+        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+        unzip cmdline-tools.zip -d latest
+        export ANDROID_SDK_ROOT=$HOME/android-sdk
+        export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH
+        yes | sdkmanager --licenses || true
+        yes | sdkmanager --update || true
+        yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-      - name: Instalar SDK e NDK manualmente
-        run: |
-          mkdir -p $HOME/android-sdk
-          cd $HOME/android-sdk
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O cmdline-tools.zip
-          unzip cmdline-tools.zip -d cmdline-tools
-          mv cmdline-tools/cmdline-tools cmdline-tools/latest
-          export ANDROID_HOME=$HOME/android-sdk
-          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
-          yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses
-          yes | sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-31" "build-tools;31.0.0" "ndk;21.4.7075529"
+    - name: Instalar Buildozer e dependências
+      run: |
+        pip install --upgrade pip Cython
+        pip install buildozer
+        buildozer version
 
-      - name: Descompactar projeto ZIP
-        run: |
-          if [ -f "analista_esportivo_app_package.zip" ]; then
-            echo "📦 Descompactando projeto..."
-            unzip -o analista_esportivo_app_package.zip -d ./app_project
-          fi
+    - name: Preparar projeto (descompactar ZIP)
+      run: |
+        if [ -f "./analista_esportivo_app_package.zip" ]; then
+          echo "Descompactando pacote..."
+          unzip -o analista_esportivo_app_package.zip -d projeto/
+        else
+          echo "Arquivo ZIP não encontrado!"
+        fi
 
-      - name: Compilar APK com Buildozer
-        run: |
-          cd app_project
-          export ANDROIDSDK=$HOME/android-sdk
-          export ANDROIDNDK=$ANDROIDSDK/ndk/21.4.7075529
-          export PATH=$ANDROIDSDK/platform-tools:$ANDROIDSDK/cmdline-tools/latest/bin:$PATH
-          echo "🚀 Iniciando build com modo: ${{ matrix.mode }}"
-          buildozer android debug
+    - name: Compilar APK com Buildozer
+      run: |
+        cd projeto
+        buildozer android debug
 
-      - name: Upload do APK
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Analista-Esportivo-APK
-          path: app_project/bin/*.apk
+    - name: Upload do APK
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: analista_esportivo_pro_apk
+        path: |
+          projeto/bin/*.apk
