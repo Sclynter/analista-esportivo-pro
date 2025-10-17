@@ -1,4 +1,4 @@
-name: Construir Analista Esportivo APK
+name: Construir APK Analista Esportivo (Fix AIDL)
 
 on:
   workflow_dispatch:
@@ -7,117 +7,67 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    env:
-      ANDROID_SDK_ROOT: /home/runner/work/_temp/android-sdk
-      ANDROID_HOME: /home/runner/work/_temp/android-sdk
 
     steps:
-    - name: Checkout repositório
+    - name: Checkout código
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
-    - name: Configurar Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.11"
-
-    - name: Instalar dependências base e Java
+    - name: Instalar dependências base
       run: |
         sudo apt-get update -y
-        sudo apt-get install -y wget unzip zip openjdk-17-jdk build-essential zlib1g-dev libtinfo6 libstdc++6 libffi-dev
-        java -version
+        sudo apt-get install -y wget unzip zip openjdk-17-jdk python3 python3-pip libffi-dev build-essential zlib1g-dev libssl-dev
 
     - name: Instalar Buildozer e dependências Python
       run: |
-        python -m pip install --upgrade pip
+        pip install --upgrade pip
         pip install buildozer cython virtualenv
 
     - name: Configurar diretórios do Android SDK
       run: |
-        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-
-    - name: Baixar ferramentas de linha de comando Android
-      run: |
-        cd /home/runner/work/_temp
-        wget -O cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-        unzip -q cmdline-tools.zip -d cmdline-tools-temp
+        export ANDROID_SDK_ROOT=$HOME/android-sdk
         mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-        mv cmdline-tools-temp/cmdline-tools/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/"
-        rm -rf cmdline-tools-temp cmdline-tools.zip
-
-    - name: Configurar PATH do Android SDK
-      run: |
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
+        unzip -q cmdtools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools/latest"
         echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
         echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-        echo "$ANDROID_SDK_ROOT/build-tools/34.0.0" >> $GITHUB_PATH
 
-    - name: Instalar SDKs necessários (aceitar licenças automaticamente)
+    - name: Instalar SDKs necessários
       run: |
         yes | sdkmanager --licenses || true
-        sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
-          "platform-tools" \
-          "platforms;android-33" \
-          "build-tools;34.0.0" \
-          "ndk;25.2.9519653" \
-          "cmdline-tools;latest"
+        sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
     - name: Verificar AIDL
       run: |
-        ls -la "$ANDROID_SDK_ROOT/build-tools/34.0.0/"
-        if [ ! -f "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" ]; then
-          echo "AIDL não encontrado — reinstalando build-tools 34.0.0"
-          sdkmanager "build-tools;34.0.0" --sdk_root="$ANDROID_SDK_ROOT"
-        fi
-        which aidl || echo "AIDL ainda não no PATH!"
+        ls -la $HOME/android-sdk/build-tools/34.0.0/ || true
+        echo "$HOME/android-sdk/build-tools/34.0.0" >> $GITHUB_PATH
 
     - name: Corrigir buildozer.spec (forçar versão do build-tools)
       run: |
-        if grep -q "android.sdk_path" buildozer.spec 2>/dev/null; then
-          echo "buildozer.spec já configurado"
-        elif [ -f "buildozer.spec" ]; then
-          echo "android.sdk_path = $ANDROID_SDK_ROOT" >> buildozer.spec
-          echo "android.sdk_build_tools = 34.0.0" >> buildozer.spec
-        elif [ -f "./analista_esportivo_app/buildozer.spec" ]; then
-          echo "android.sdk_path = $ANDROID_SDK_ROOT" >> ./analista_esportivo_app/buildozer.spec
-          echo "android.sdk_build_tools = 34.0.0" >> ./analista_esportivo_app/buildozer.spec
+        if [ -f buildozer.spec ]; then
+          sed -i 's|^#*android\.sdk_path.*|android.sdk_path = /home/runner/android-sdk|' buildozer.spec
+          sed -i 's|^#*android\.ndk_path.*|#android.ndk_path = /home/runner/android-ndk|' buildozer.spec
+          sed -i 's|^#*android\.api.*|android.api = 34|' buildozer.spec
+          sed -i 's|^#*android\.minapi.*|android.minapi = 21|' buildozer.spec
+          sed -i 's|^#*android\.build_tools_version.*|android.build_tools_version = 34.0.0|' buildozer.spec
+          echo "✔ buildozer.spec ajustado"
+        else
+          echo "⚠ buildozer.spec não encontrado!"
+          exit 1
         fi
 
     - name: Preparar projeto
       run: |
         if [ -f "./analista_esportivo_app_package.zip" ]; then
           unzip -q analista_esportivo_app_package.zip -d .
-          echo "Pacote do app descompactado com sucesso!"
+          echo "Pacote descompactado!"
         fi
         ls -la
 
     - name: Construir APK com Buildozer
       run: |
-        if [ -f buildozer.spec ]; then
-          cd .
-        elif [ -f "./analista_esportivo_app/buildozer.spec" ]; then
-          cd ./analista_esportivo_app
-        elif [ -f "./analista_esportivo_app_package/buildozer.spec" ]; then
-          cd ./analista_esportivo_app_package
-        else
-          echo "Arquivo buildozer.spec não encontrado!"
-          exit 1
-        fi
-
-        echo "Iniciando compilação do APK..."
-        export PATH="$ANDROID_SDK_ROOT/build-tools/34.0.0:$PATH"
+        export ANDROIDSDK=$HOME/android-sdk
+        export PATH=$ANDROIDSDK/build-tools/34.0.0:$ANDROIDSDK/platform-tools:$PATH
         buildozer -v android debug
-
-        echo "Verificando se o APK foi gerado..."
-        if ls ./bin/*.apk 1> /dev/null 2>&1; then
-          echo "APK gerado com sucesso!"
-        else
-          echo "Erro: Nenhum APK encontrado!"
-          exit 1
-        fi
 
     - name: Upload do APK
       if: success()
