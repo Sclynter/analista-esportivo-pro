@@ -1,4 +1,4 @@
-name: Construir APK Analista Esportivo
+name: Construir Analista Esportivo APK
 
 on:
   workflow_dispatch:
@@ -8,66 +8,95 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     env:
-      ANDROID_SDK_ROOT: /home/runner/android-sdk
-      ANDROID_HOME: /home/runner/android-sdk
+      ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
+      ANDROID_HOME: ${{ runner.temp }}/android-sdk
 
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    - name: Checkout repositório
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-      - name: Instalar dependências base e Java
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y wget unzip zip openjdk-17-jdk build-essential zlib1g-dev libncurses5 libffi-dev
-          java -version
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
 
-      - name: Configurar Python e Buildozer
-        run: |
-          python3 -m pip install --upgrade pip
-          pip install buildozer cython virtualenv
+    - name: Instalar dependências base e Java
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y wget unzip zip openjdk-17-jdk build-essential zlib1g-dev libtinfo6 libstdc++6 libffi-dev
+        java -version
 
-      - name: Baixar e configurar Android SDK
-        run: |
-          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-          cd "$ANDROID_SDK_ROOT/cmdline-tools"
-          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip
-          unzip -q tools.zip
-          mv cmdline-tools latest
-          rm tools.zip
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH" >> $GITHUB_ENV
+    - name: Instalar Buildozer e dependências Python
+      run: |
+        python -m pip install --upgrade pip
+        pip install buildozer cython virtualenv
 
-      - name: Aceitar licenças e instalar SDKs necessários
-        run: |
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-            "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+    - name: Configurar diretórios do Android SDK
+      run: |
+        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
-      - name: Preparar projeto
-        run: |
-          if [ -f "./analista_esportivo_app_package.zip" ]; then
-            unzip -q analista_esportivo_app_package.zip -d .
-          fi
-          if [ -f "./analista_esportivo_app/buildozer.spec" ]; then
-            cd analista_esportivo_app
-          elif [ -f "./buildozer.spec" ]; then
-            cd .
-          else
-            echo "Arquivo buildozer.spec não encontrado!"
-            exit 1
-          fi
-          echo "Diretório atual:"
-          pwd
-          ls -la
+    - name: Baixar ferramentas de linha de comando Android
+      run: |
+        set -e
+        cd $RUNNER_TEMP
+        wget -O cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+        unzip -q cmdline-tools.zip -d cmdline-tools-temp
+        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+        mv cmdline-tools-temp/cmdline-tools/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/"
+        rm -rf cmdline-tools-temp cmdline-tools.zip
+        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest"
 
-      - name: Construir APK com Buildozer
-        run: |
-          buildozer -v android debug
+    - name: Configurar PATH do Android SDK
+      run: |
+        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
 
-      - name: Upload do APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: AnalistaEsportivoPro-APK
-          path: '**/bin/*.apk'
+    - name: Instalar SDKs necessários (auto-aceitar licenças)
+      run: |
+        yes | sdkmanager --licenses || true
+        sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+
+    - name: Preparar projeto
+      run: |
+        if [ -f "./analista_esportivo_app_package.zip" ]; then
+          unzip -q analista_esportivo_app_package.zip -d .
+          echo "Pacote do app descompactado com sucesso!"
+        fi
+        ls -la
+
+    - name: Construir APK com Buildozer
+      run: |
+        if [ -f buildozer.spec ]; then
+          cd .
+        elif [ -f "./analista_esportivo_app/buildozer.spec" ]; then
+          cd ./analista_esportivo_app
+        elif [ -f "./analista_esportivo_app_package/buildozer.spec" ]; then
+          cd ./analista_esportivo_app_package
+        else
+          echo "Arquivo buildozer.spec não encontrado!"
+          exit 1
+        fi
+
+        echo "Iniciando compilação do APK..."
+        buildozer -v android debug
+
+        echo "Verificando se o APK foi gerado..."
+        if ls ./bin/*.apk 1> /dev/null 2>&1; then
+          echo "APK gerado com sucesso!"
+        else
+          echo "Erro: Nenhum APK encontrado!"
+          exit 1
+        fi
+
+    - name: Upload do APK
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: AnalistaEsportivo-APK
+        path: |
+          **/bin/*.apk
