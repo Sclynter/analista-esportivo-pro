@@ -22,21 +22,21 @@ jobs:
       - name: Preparar projeto (descompactar se existir)
         run: |
           if [ -f "./analista_esportivo_app_package.zip" ]; then
-            echo "Descompactando pacote de app..."
+            echo "📦 Descompactando pacote do app..."
             unzip -o analista_esportivo_app_package.zip
-            echo "Pacote do app descompactado com sucesso!"
+            echo "✅ Pacote do app descompactado com sucesso!"
           fi
 
       - name: Desativar BuildKit globalmente
         run: |
-          echo "Desativando BuildKit..."
+          echo "🚫 Desativando BuildKit..."
           echo 'DOCKER_BUILDKIT=0' | sudo tee -a /etc/environment
           echo 'COMPOSE_DOCKER_CLI_BUILD=0' | sudo tee -a /etc/environment
-          echo "BuildKit desativado!"
+          echo "✅ BuildKit desativado!"
 
       - name: Construir APK com Buildozer (Docker)
         run: |
-          docker run --rm -v "$(pwd)":/home/user/app kivymd/buildozer bash -c "
+          docker run --rm -v "$(pwd)":/home/user/app kivy/buildozer:latest bash -c "
             cd /home/user/app &&
             buildozer android debug
           "
