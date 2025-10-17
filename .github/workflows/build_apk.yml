@@ -60,16 +60,15 @@ jobs:
         sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
           "platform-tools" \
           "platforms;android-33" \
-          "build-tools;36.0.1" \
           "build-tools;34.0.0" \
           "ndk;25.2.9519653" \
           "cmdline-tools;latest"
 
     - name: Verificar se aidl foi instalado
       run: |
-        if [ ! -f "$ANDROID_SDK_ROOT/build-tools/36.0.1/aidl" ]; then
-          echo "Aidl ainda não encontrado, tentando reinstalar build-tools..."
-          sdkmanager "build-tools;36.0.1" --sdk_root="$ANDROID_SDK_ROOT"
+        if [ ! -f "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" ]; then
+          echo "Aidl não encontrado, reinstalando build-tools 34.0.0..."
+          sdkmanager "build-tools;34.0.0" --sdk_root="$ANDROID_SDK_ROOT"
         fi
         find "$ANDROID_SDK_ROOT/build-tools" -type f -name aidl || echo "Aidl não encontrado!"
 
