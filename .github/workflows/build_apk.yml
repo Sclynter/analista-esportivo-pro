@@ -1,4 +1,4 @@
-name: Construir APK Analista Esportivo (Fix sdkmanager + AIDL)
+name: Construir APK Analista Esportivo (Fix sdkmanager definitivo)
 
 on:
   workflow_dispatch:
@@ -6,7 +6,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
 
     steps:
     - name: Checkout código
@@ -26,22 +25,21 @@ jobs:
       run: |
         export ANDROID_SDK_ROOT=$HOME/android-sdk
         mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-        cd $ANDROID_SDK_ROOT/cmdline-tools
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
-        unzip -q cmdtools.zip -d tools
+        cd "$ANDROID_SDK_ROOT/cmdline-tools"
+        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
+        unzip cmdtools.zip -d latest
         rm cmdtools.zip
         echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "$ANDROID_SDK_ROOT/cmdline-tools/tools/bin" >> $GITHUB_PATH
+        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
     - name: Instalar SDKs necessários
       run: |
-        yes | sdkmanager --licenses || true
-        sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+        sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses || true
+        sdkmanager --sdk_root=$ANDROID_SDK_ROOT --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
     - name: Verificar AIDL
       run: |
         ls -la $HOME/android-sdk/build-tools/34.0.0/ || true
-        echo "$HOME/android-sdk/build-tools/34.0.0" >> $GITHUB_PATH
 
     - name: Corrigir buildozer.spec (forçar versão do build-tools)
       run: |
@@ -50,17 +48,12 @@ jobs:
           sed -i 's|^#*android\.api.*|android.api = 34|' buildozer.spec
           sed -i 's|^#*android\.minapi.*|android.minapi = 21|' buildozer.spec
           sed -i 's|^#*android\.build_tools_version.*|android.build_tools_version = 34.0.0|' buildozer.spec
-          echo "✔ buildozer.spec ajustado"
-        else
-          echo "⚠ buildozer.spec não encontrado!"
-          exit 1
         fi
 
     - name: Preparar projeto
       run: |
         if [ -f "./analista_esportivo_app_package.zip" ]; then
           unzip -q analista_esportivo_app_package.zip -d .
-          echo "Pacote descompactado!"
         fi
         ls -la
 
