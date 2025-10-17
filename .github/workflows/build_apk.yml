@@ -1,71 +1,75 @@
-name: Build Analista Esportivo APK (sdkmanager fix absoluto)
+name: Build APK with Buildozer
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout código
-      uses: actions/checkout@v4
+      - name: Checkout código
+        uses: actions/checkout@v4
 
-    - name: Instalar dependências base
-      run: |
-        sudo apt-get update -y
-        sudo apt-get install -y wget unzip zip openjdk-17-jdk python3 python3-pip libffi-dev build-essential zlib1g-dev libssl-dev
+      - name: Instalar dependências base
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip openjdk-17-jdk python3 python3-pip libffi-dev libssl-dev
 
-    - name: Instalar Buildozer e dependências Python
-      run: |
-        pip install --upgrade pip
-        pip install buildozer cython virtualenv
+      - name: Instalar Buildozer e dependências Python
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install buildozer cython virtualenv
 
-    - name: Baixar e configurar Android Commandline Tools
-      run: |
-        export ANDROID_SDK_ROOT=$HOME/android-sdk
-        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-        cd "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
-        unzip -o cmdtools.zip
-        rm cmdtools.zip
-        chmod +x bin/sdkmanager
-        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+      - name: Baixar e configurar Android Commandline Tools
+        run: |
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+          curl -o sdk-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip sdk-tools.zip
+          mv cmdline-tools latest
+          rm sdk-tools.zip
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
-    - name: Instalar SDKs necessários (usando caminho absoluto)
-      run: |
-        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk --licenses || true
-        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+      - name: Instalar SDKs necessários (usando caminho absoluto)
+        run: |
+          export ANDROID_SDK_ROOT=$HOME/android-sdk
+          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
+          yes | sdkmanager --licenses || true
+          sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "build-tools;34.0.0" "platforms;android-34"
 
-    - name: Verificar AIDL
-      run: |
-        ls -la $HOME/android-sdk/build-tools/34.0.0/ || true
+      - name: Verificar AIDL
+        run: |
+          if [ ! -f "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" ]; then
+            echo "AIDL não encontrado. Verifique a instalação do build-tools."
+            exit 1
+          fi
 
-    - name: Corrigir buildozer.spec
-      run: |
-        if [ -f buildozer.spec ]; then
-          sed -i 's|^#*android\.sdk_path.*|android.sdk_path = /home/runner/android-sdk|' buildozer.spec
-          sed -i 's|^#*android\.api.*|android.api = 34|' buildozer.spec
-          sed -i 's|^#*android\.build_tools_version.*|android.build_tools_version = 34.0.0|' buildozer.spec
-        fi
+      - name: Corrigir buildozer.spec (forçar versão do SDK)
+        run: |
+          if grep -q "android.sdk_path" buildozer.spec; then
+            sed -i "s|android.sdk_path = .*|android.sdk_path = $HOME/android-sdk|" buildozer.spec
+          else
+            echo "android.sdk_path = $HOME/android-sdk" >> buildozer.spec
+          fi
 
-    - name: Preparar projeto
-      run: |
-        if [ -f "./analista_esportivo_app_package.zip" ]; then
-          unzip -q analista_esportivo_app_package.zip -d .
-        fi
-        ls -la
+      - name: Preparar projeto
+        run: |
+          if [ -f "./analista_esportivo_app_package.zip" ]; then
+            unzip -o analista_esportivo_app_package.zip
+            echo "Pacote do app descompactado com sucesso!"
+          fi
 
-    - name: Construir APK com Buildozer
-      run: |
-        export ANDROIDSDK=$HOME/android-sdk
-        export PATH=$ANDROIDSDK/build-tools/34.0.0:$ANDROIDSDK/platform-tools:$PATH
-        buildozer -v android debug
+      - name: Construir APK com Buildozer
+        run: |
+          buildozer android debug
 
-    - name: Upload do APK
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: AnalistaEsportivo-APK
-        path: "**/bin/*.apk"
+      - name: Upload do APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Analista-Esportivo-APK
+          path: bin/*.apk
