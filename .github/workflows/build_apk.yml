@@ -1,4 +1,4 @@
-name: Build APK with Buildozer (Docker)
+name: Build APK with Buildozer
 
 on:
   push:
@@ -17,39 +17,29 @@ jobs:
       - name: Instalar dependências básicas
         run: |
           sudo apt update
-          sudo apt install -y python3 python3-pip git zip unzip
-          docker --version
-          echo "✅ Docker já está instalado e funcional!"
+          sudo apt install -y python3 python3-pip unzip zip git
 
-      - name: Preparar projeto (descompactar se existir)
+      - name: Preparar projeto (descompactar ZIP)
         run: |
           if [ -f "./analista_esportivo_app_package.zip" ]; then
-            echo "📦 Descompactando pacote do app..."
+            echo "Descompactando pacote de app..."
             unzip -o analista_esportivo_app_package.zip
-            echo "✅ Pacote do app descompactado com sucesso!"
+          else
+            echo "Nenhum pacote ZIP encontrado."
           fi
 
-      - name: Desativar BuildKit globalmente
+      - name: Instalar Buildozer (sem Docker)
         run: |
-          echo "🚫 Desativando BuildKit..."
-          echo "DOCKER_BUILDKIT=0" | sudo tee -a /etc/environment
-          echo "COMPOSE_DOCKER_CLI_BUILD=0" | sudo tee -a /etc/environment
-          export DOCKER_BUILDKIT=0
-          export COMPOSE_DOCKER_CLI_BUILD=0
-          echo "✅ BuildKit desativado!"
+          pip install --upgrade pip setuptools wheel
+          pip install buildozer cython virtualenv
 
-      - name: Construir APK com Buildozer (Docker)
-        env:
-          DOCKER_BUILDKIT: 0
-          COMPOSE_DOCKER_CLI_BUILD: 0
+      - name: Construir APK com Buildozer local
+        working-directory: ./analista_esportivo_app
         run: |
-          docker run --rm -v "$(pwd)":/home/user/app kivy/buildozer:latest bash -c "
-            cd /home/user/app &&
-            buildozer android debug
-          "
+          buildozer android debug
 
       - name: Upload do APK
         uses: actions/upload-artifact@v4
         with:
           name: AnalistaEsportivoPro-APK
-          path: bin/*.apk
+          path: analista_esportivo_app/bin/*.apk
