@@ -40,14 +40,12 @@ jobs:
 
     - name: Baixar ferramentas de linha de comando Android
       run: |
-        set -e
         cd /home/runner/work/_temp
         wget -O cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
         unzip -q cmdline-tools.zip -d cmdline-tools-temp
         mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
         mv cmdline-tools-temp/cmdline-tools/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/"
         rm -rf cmdline-tools-temp cmdline-tools.zip
-        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest"
 
     - name: Configurar PATH do Android SDK
       run: |
@@ -56,10 +54,24 @@ jobs:
         echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
         echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
 
-    - name: Instalar SDKs necessários (auto-aceitar licenças)
+    - name: Instalar SDKs necessários (aceitar licenças automaticamente)
       run: |
         yes | sdkmanager --licenses || true
-        sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+        sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
+          "platform-tools" \
+          "platforms;android-33" \
+          "build-tools;36.0.1" \
+          "build-tools;34.0.0" \
+          "ndk;25.2.9519653" \
+          "cmdline-tools;latest"
+
+    - name: Verificar se aidl foi instalado
+      run: |
+        if [ ! -f "$ANDROID_SDK_ROOT/build-tools/36.0.1/aidl" ]; then
+          echo "Aidl ainda não encontrado, tentando reinstalar build-tools..."
+          sdkmanager "build-tools;36.0.1" --sdk_root="$ANDROID_SDK_ROOT"
+        fi
+        find "$ANDROID_SDK_ROOT/build-tools" -type f -name aidl || echo "Aidl não encontrado!"
 
     - name: Preparar projeto
       run: |
