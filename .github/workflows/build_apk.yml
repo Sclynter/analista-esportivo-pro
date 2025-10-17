@@ -65,14 +65,26 @@ jobs:
           "ndk;25.2.9519653" \
           "cmdline-tools;latest"
 
-    - name: Forçar reinstalação do AIDL se necessário
+    - name: Verificar AIDL
       run: |
+        ls -la "$ANDROID_SDK_ROOT/build-tools/34.0.0/"
         if [ ! -f "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" ]; then
-          echo "Aidl não encontrado — reinstalando build-tools 34.0.0..."
+          echo "AIDL não encontrado — reinstalando build-tools 34.0.0"
           sdkmanager "build-tools;34.0.0" --sdk_root="$ANDROID_SDK_ROOT"
         fi
-        ls -la "$ANDROID_SDK_ROOT/build-tools/34.0.0/" || true
         which aidl || echo "AIDL ainda não no PATH!"
+
+    - name: Corrigir buildozer.spec (forçar versão do build-tools)
+      run: |
+        if grep -q "android.sdk_path" buildozer.spec 2>/dev/null; then
+          echo "buildozer.spec já configurado"
+        elif [ -f "buildozer.spec" ]; then
+          echo "android.sdk_path = $ANDROID_SDK_ROOT" >> buildozer.spec
+          echo "android.sdk_build_tools = 34.0.0" >> buildozer.spec
+        elif [ -f "./analista_esportivo_app/buildozer.spec" ]; then
+          echo "android.sdk_path = $ANDROID_SDK_ROOT" >> ./analista_esportivo_app/buildozer.spec
+          echo "android.sdk_build_tools = 34.0.0" >> ./analista_esportivo_app/buildozer.spec
+        fi
 
     - name: Preparar projeto
       run: |
