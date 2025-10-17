@@ -1,22 +1,27 @@
-name: Build APK with Buildozer (no Docker, fixed sdkmanager)
+name: Build APK with Buildozer
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Set up job
+        run: echo "🏗️ Iniciando build do APK..."
+
       - name: Checkout código
         uses: actions/checkout@v4
 
       - name: Instalar dependências básicas
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y python3 python3-pip openjdk-17-jdk unzip git wget curl zip
+          sudo apt-get update
+          sudo apt-get install -y \
+            git zip unzip python3 python3-pip openjdk-17-jdk \
+            libffi-dev libssl-dev autoconf automake libtool pkg-config \
+            zlib1g-dev libncurses5-dev libtinfo5 libstdc++6 \
+            wget curl
 
       - name: Preparar projeto (descompactar ZIP)
         run: |
@@ -24,10 +29,8 @@ jobs:
             echo "📦 Descompactando pacote..."
             unzip -o analista_esportivo_app_package.zip -d ./projeto
             echo "✅ Pacote descompactado com sucesso!"
-          else
-            echo "❌ Arquivo ZIP não encontrado!"
-            exit 1
           fi
+          cd projeto
 
       - name: Baixar e configurar Android SDK
         run: |
@@ -35,28 +38,31 @@ jobs:
           mkdir -p $HOME/android-sdk/cmdline-tools
           cd $HOME/android-sdk/cmdline-tools
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
-          unzip -q tools.zip -d $HOME/android-sdk/cmdline-tools/latest
+          unzip -q tools.zip -d tools
+          mv tools $HOME/android-sdk/cmdline-tools/latest
+
           export ANDROID_SDK_ROOT=$HOME/android-sdk
-          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools
+
           echo "✅ Instalando SDK e aceitando licenças..."
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+          yes | sdkmanager --licenses || true
+          yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
 
       - name: Instalar Buildozer e dependências Python
         run: |
           python3 -m pip install --upgrade pip setuptools wheel
-          python3 -m pip install buildozer cython virtualenv
+          pip install buildozer cython virtualenv
 
       - name: Construir APK com Buildozer local
-        working-directory: ./projeto
+        working-directory: ./projeto/analista_esportivo_app
         run: |
-          export ANDROID_SDK_ROOT=$HOME/android-sdk
-          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
-          echo "🚀 Iniciando build com Buildozer..."
+          export ANDROIDSDK=$HOME/android-sdk
+          export ANDROIDNDK=$HOME/.buildozer/android/platform/android-ndk-r25b
+          export PATH=$PATH:$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools
           buildozer android debug
 
       - name: Upload do APK
         uses: actions/upload-artifact@v4
         with:
-          name: Analista-Esportivo-Pro
-          path: projeto/bin/*.apk
+          name: app-android
+          path: ./projeto/analista_esportivo_app/bin/*.apk
