@@ -1,4 +1,4 @@
-name: Build APK with Buildozer (Estável)
+name: Build APK with Buildozer (Docker)
 
 on:
   push:
@@ -16,42 +16,8 @@ jobs:
       - name: Instalar dependências base
         run: |
           sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-17-jdk python3 python3-pip libffi-dev libssl-dev curl
+          sudo apt-get install -y zip unzip git python3 python3-pip
 
-      - name: Instalar Buildozer e dependências Python
-        run: |
-          pip install --upgrade pip
-          pip install buildozer==1.2.0 cython virtualenv
-
-      # Limpa possíveis caches antigos
-      - name: Limpar cache do Buildozer
-        run: |
-          rm -rf .buildozer
-          rm -rf ~/.buildozer
-          rm -rf $HOME/android-sdk
-
-      # Instalação oficial do Android SDK e NDK
-      - name: Configurar Android SDK (ação oficial)
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-33
-            build-tools;33.0.2
-            ndk;25.2.9519653
-
-      # Aceita todas as licenças do SDK (correção do seu erro)
-      - name: Aceitar licenças do Android SDK
-        run: |
-          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
-      # Corrige o buildozer.spec
-      - name: Corrigir buildozer.spec
-        run: |
-          sed -i "s|android.sdk_path = .*|android.sdk_path = /usr/local/lib/android/sdk|" buildozer.spec || echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
-          sed -i "s|android.ndk_path = .*|android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653|" buildozer.spec || echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
-
-      # Descompacta o projeto, se necessário
       - name: Preparar projeto
         run: |
           if [ -f "./analista_esportivo_app_package.zip" ]; then
@@ -59,11 +25,13 @@ jobs:
             echo "📦 Pacote do app descompactado com sucesso!"
           fi
 
-      # Compila o APK
-      - name: Construir APK com Buildozer
-        run: buildozer android debug
+      # 🐳 Usa o Buildozer oficial em Docker (com SDK e NDK já prontos)
+      - name: Build APK com Buildozer (Docker)
+        run: |
+          docker run --rm -v "$(pwd)":/home/user/app \
+            kivy/buildozer \
+            buildozer android debug
 
-      # Faz upload do APK gerado
       - name: Upload do APK
         uses: actions/upload-artifact@v4
         with:
