@@ -17,7 +17,9 @@ jobs:
       - name: Instalar dependências básicas
         run: |
           sudo apt update
-          sudo apt install -y python3 python3-pip git zip unzip docker.io
+          sudo apt install -y python3 python3-pip git zip unzip
+          docker --version
+          echo "✅ Docker já está instalado e funcional!"
 
       - name: Preparar projeto (descompactar se existir)
         run: |
