@@ -10,49 +10,41 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Set up job
-        run: echo "Iniciando build do APK com Buildozer..."
-
       - name: Checkout código
         uses: actions/checkout@v4
 
       - name: Instalar dependências básicas
         run: |
           sudo apt update
-          sudo apt install -y zip unzip git python3 python3-pip
+          sudo apt install -y python3 python3-pip zip unzip git
 
-      - name: Preparar projeto (Descompactar se existir)
+      - name: Preparar projeto (descompactar se existir)
         run: |
           if [ -f "./analista_esportivo_app_package.zip" ]; then
             echo "Descompactando pacote de app..."
             unzip -o analista_esportivo_app_package.zip -d .
-            echo "Pacote do app descompactado com sucesso!"
+            echo "Pacote descompactado com sucesso!"
           else
-            echo "Nenhum arquivo ZIP encontrado — prosseguindo..."
+            echo "Nenhum pacote ZIP encontrado, continuando..."
           fi
 
       - name: Desativar BuildKit globalmente
         run: |
           echo "DOCKER_BUILDKIT=0" | sudo tee -a /etc/environment
           echo "COMPOSE_DOCKER_CLI_BUILD=0" | sudo tee -a /etc/environment
-          export DOCKER_BUILDKIT=0
-          export COMPOSE_DOCKER_CLI_BUILD=0
           echo "BuildKit desativado globalmente com sucesso!"
 
       - name: Construir APK com Buildozer (Docker)
-        uses: addnab/docker-run-action@v3
-        with:
-          image: kivy/buildozer-ci:latest
-          options: -v ${{ github.workspace }}:/home/user/app
-          run: |
-            cd /home/user/app
-            echo "Iniciando build do APK..."
+        run: |
+          docker run --rm -v "$(pwd)":/home/user/app kivymd/buildozer bash -c "
+            cd /home/user/app/analista_esportivo_app || cd /home/user/app
             buildozer android debug
-            echo "Build finalizado!"
+          "
 
       - name: Upload do APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Analista-Esportivo-Pro-APK
+          name: analista-esportivo-apk
           path: |
-            /home/runner/work/analista-esportivo-pro/analista-esportivo-pro/bin/*.apk
+            **/bin/*.apk
