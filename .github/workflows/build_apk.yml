@@ -1,4 +1,4 @@
-name: Construir Analista Esportivo APK
+name: Construir APK Analista Esportivo
 
 on:
   workflow_dispatch:
@@ -8,179 +8,66 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     env:
-      ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
-      ANDROID_HOME: ${{ runner.temp }}/android-sdk
+      ANDROID_SDK_ROOT: /home/runner/android-sdk
+      ANDROID_HOME: /home/runner/android-sdk
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.11"
+      - name: Instalar dependências base e Java
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y wget unzip zip openjdk-17-jdk build-essential zlib1g-dev libncurses5 libffi-dev
+          java -version
 
-    - name: Install base packages (apt) and Java
-      run: |
-        sudo apt-get update -y
-        sudo apt-get install -y wget unzip zip openjdk-17-jdk build-essential zlib1g-dev libncurses5 libstdc++6 libffi-dev
-        java -version
+      - name: Configurar Python e Buildozer
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install buildozer cython virtualenv
 
-    - name: Install Python deps (buildozer)
-      run: |
-        python -m pip install --upgrade pip
-        pip install buildozer cython virtualenv
+      - name: Baixar e configurar Android SDK
+        run: |
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          cd "$ANDROID_SDK_ROOT/cmdline-tools"
+          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip
+          unzip -q tools.zip
+          mv cmdline-tools latest
+          rm tools.zip
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH" >> $GITHUB_ENV
 
-    - name: Create Android SDK layout
-      run: |
-        set -e
-        mkdir -p "$ANDROID_SDK_ROOT"
-        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-        echo "ANDROID_SDK_ROOT = $ANDROID_SDK_ROOT"
+      - name: Aceitar licenças e instalar SDKs necessários
+        run: |
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-    - name: Download and install Android commandline tools (with retry)
-      run: |
-        set -e
-        TOOLS_ZIP="commandlinetools-linux-9477386_latest.zip"
-        TMPDL="$RUNNER_TEMP/cmdline-tools.zip"
-        cd $RUNNER_TEMP
-        retry=0
-        until [ $retry -ge 4 ]
-        do
-          if wget -O "$TMPDL" "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip"; then
-            echo "Downloaded cmdline-tools"
-            break
+      - name: Preparar projeto
+        run: |
+          if [ -f "./analista_esportivo_app_package.zip" ]; then
+            unzip -q analista_esportivo_app_package.zip -d .
           fi
-          retry=$((retry+1))
-          echo "Retrying download ($retry)..."
-          sleep 3
-        done
-        unzip -q "$TMPDL" -d "$RUNNER_TEMP/cmdline-tools-temp"
-        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-        mv "$RUNNER_TEMP/cmdline-tools-temp/cmdline-tools/"* "$ANDROID_SDK_ROOT/cmdline-tools/latest/" || true
-        rm -rf "$RUNNER_TEMP/cmdline-tools-temp" "$TMPDL"
-        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-
-    - name: Set PATH for Android tools
-      run: |
-        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_ENV
-
-    - name: Ensure sdkmanager exists and is runnable
-      run: |
-        set -e
-        if [ ! -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
-          echo "sdkmanager not found or not executable; listing folder:"
-          ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-          chmod +x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/"*
-        fi
-        sdkmanager --version || true
-
-    - name: Install Android SDK components (auto-accept licenses) - with retries
-      run: |
-        set -e
-        export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-        # ensure platform-tools dir exists
-        mkdir -p "$ANDROID_SDK_ROOT/platform-tools"
-        MAX_TRIES=3
-        attempt=1
-        until [ $attempt -gt $MAX_TRIES ]
-        do
-          echo "Trying to install android components (attempt $attempt of $MAX_TRIES)..."
-          # accept licenses non-interactively
-          yes | sdkmanager --licenses || true
-          # install basic components
-          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "platforms;android-33" "ndk;25.2.9519653" --sdk_root="$ANDROID_SDK_ROOT" || true
-          # check essential tools
-          if [ -f "$ANDROID_SDK_ROOT/platform-tools/adb" ] || command -v sdkmanager >/dev/null 2>&1; then
-            echo "Android components installed or sdkmanager available."
-            break
-          fi
-          attempt=$((attempt+1))
-          sleep 5
-        done
-
-        # final check
-        if ! command -v sdkmanager >/dev/null 2>&1; then
-          echo "sdkmanager still not found - aborting."
-          ls -la "$ANDROID_SDK_ROOT"
-          exit 1
-        fi
-
-    - name: Debug list Android SDK folders
-      run: |
-        echo "SDK layout:"
-        find "$ANDROID_SDK_ROOT" -maxdepth 3 -type d -print || true
-
-    - name: Prepare project files (unzip package if present)
-      run: |
-        set -e
-        if [ -f "./analista_esportivo_app_package.zip" ]; then
-          unzip -q analista_esportivo_app_package.zip -d .
-          echo "Unzipped package."
-        fi
-        # Optional: list root to show where buildozer.spec is
-        ls -la
-
-    - name: Run buildozer (try with retry)
-      run: |
-        set -e
-        export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
-        # go to the folder that contains buildozer.spec (adjust if your spec is inside a subfolder)
-        if [ -f buildozer.spec ]; then
-          PROJECT_DIR="."
-        elif [ -f "./analista_esportivo_app_package/buildozer.spec" ]; then
-          PROJECT_DIR="./analista_esportivo_app_package"
-        elif [ -f "./analista_esportivo_app/buildozer.spec" ]; then
-          PROJECT_DIR="./analista_esportivo_app"
-        else
-          echo "Não encontrei buildozer.spec. Procure o arquivo e coloque-o na raiz ou em analista_esportivo_app."
-          ls -la
-          exit 1
-        fi
-        echo "Usando PROJECT_DIR=${PROJECT_DIR}"
-        cd "$PROJECT_DIR"
-
-        # build attempts
-        MAX=2
-        i=1
-        while [ $i -le $MAX ]; do
-          echo "Buildozer attempt $i of $MAX"
-          buildozer -v android debug || build_exit=$?
-          if [ -z "${build_exit:-}" ]; then
-            echo "Buildozer sucesso!"
-            break
+          if [ -f "./analista_esportivo_app/buildozer.spec" ]; then
+            cd analista_esportivo_app
+          elif [ -f "./buildozer.spec" ]; then
+            cd .
           else
-            echo "Buildozer falhou com código ${build_exit}. Tentando corrigir dependências e reexecutar..."
-            # try to fix common issues
-            export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
-            yes | sdkmanager --licenses || true
-            sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" --sdk_root="$ANDROID_SDK_ROOT" || true
-            i=$((i+1))
-            sleep 5
-            build_exit=""
+            echo "Arquivo buildozer.spec não encontrado!"
+            exit 1
           fi
-        done
+          echo "Diretório atual:"
+          pwd
+          ls -la
 
-        # check if APK exists
-        APK_GLOB="./bin/*.apk"
-        if ls $APK_GLOB 1> /dev/null 2>&1; then
-          echo "APK(s) encontrado(s):"
-          ls -la ./bin || true
-        else
-          echo "Nenhum APK gerado. Veja o log acima para erros."
-          exit 1
-        fi
+      - name: Construir APK com Buildozer
+        run: |
+          buildozer -v android debug
 
-    - name: Upload APK artifact
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: AnalistaEsportivo-APK
-        path: |
-          **/bin/*.apk
+      - name: Upload do APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnalistaEsportivoPro-APK
+          path: '**/bin/*.apk'
