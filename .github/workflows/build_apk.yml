@@ -1,4 +1,4 @@
-name: Build APK with Buildozer
+name: Build APK with Buildozer (no Docker)
 
 on:
   push:
@@ -17,7 +17,25 @@ jobs:
       - name: Instalar dependências básicas
         run: |
           sudo apt update
-          sudo apt install -y python3 python3-pip unzip zip git openjdk-17-jdk
+          sudo apt install -y python3 python3-pip unzip zip git openjdk-17-jdk wget
+
+      - name: Baixar e configurar Android SDK (sdkmanager)
+        run: |
+          mkdir -p $HOME/android-sdk
+          cd $HOME/android-sdk
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+          unzip cmdline-tools.zip
+          mkdir -p cmdline-tools/latest
+          mv cmdline-tools/* cmdline-tools/latest/
+          export ANDROID_SDK_ROOT=$HOME/android-sdk
+          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+          yes | sdkmanager --licenses
+          yes | sdkmanager "platforms;android-33" "build-tools;33.0.2" "platform-tools"
+
+      - name: Instalar Buildozer e dependências Python
+        run: |
+          pip install --upgrade pip setuptools wheel
+          pip install buildozer cython virtualenv
 
       - name: Preparar projeto (descompactar ZIP)
         run: |
@@ -28,21 +46,12 @@ jobs:
             echo "Nenhum pacote ZIP encontrado."
           fi
 
-      - name: Instalar Buildozer (sem Docker)
-        run: |
-          pip install --upgrade pip setuptools wheel
-          pip install buildozer cython virtualenv
-
-      - name: Aceitar licenças e instalar SDK
-        run: |
-          yes | sdkmanager --licenses || true
-          yes | sdkmanager "platforms;android-33" "build-tools;33.0.2" "platform-tools" || true
-
       - name: Construir APK com Buildozer local
         working-directory: ./analista_esportivo_app
         run: |
-          export PATH=$PATH:$HOME/.buildozer/android/platform/android-sdk/platform-tools
-          export PATH=$PATH:$HOME/.buildozer/android/platform/android-sdk/build-tools/33.0.2
+          export ANDROIDSDK=$HOME/android-sdk
+          export ANDROIDNDK=$HOME/.buildozer/android/platform/android-ndk-r21b
+          export PATH=$PATH:$ANDROIDSDK/platform-tools:$ANDROIDSDK/build-tools/33.0.2
           buildozer android debug
 
       - name: Upload do APK
