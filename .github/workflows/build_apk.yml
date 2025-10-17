@@ -1,4 +1,4 @@
-name: Build APK with Buildozer
+name: Build APK with Buildozer (Auto SDK Finder)
 
 on:
   push:
@@ -35,31 +35,51 @@ jobs:
           echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
           echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
-      - name: Instalar SDKs necessários (forçar aceitação de licença e AIDL)
+      - name: Instalar SDKs necessários e aceitar licenças
         run: |
           export ANDROID_SDK_ROOT=$HOME/android-sdk
           export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
           yes | sdkmanager --licenses
           sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
             "platform-tools" \
-            "build-tools;34.0.0" \
-            "build-tools;36.1.0" \
+            "cmdline-tools;latest" \
             "platforms;android-34" \
-            "cmdline-tools;latest"
+            "build-tools;30.0.3" \
+            "build-tools;31.0.0" \
+            "build-tools;32.0.0" \
+            "build-tools;33.0.2" \
+            "build-tools;34.0.0" \
+            "build-tools;35.0.0" \
+            "build-tools;36.1.0"
 
-      - name: Verificar AIDL
+      - name: Detectar automaticamente o AIDL
         run: |
-          if [ ! -f "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" ] && [ ! -f "$ANDROID_SDK_ROOT/build-tools/36.1.0/aidl" ]; then
-            echo "AIDL não encontrado. Verifique a instalação do build-tools."
+          export ANDROID_SDK_ROOT=$HOME/android-sdk
+          AIDL_PATH=""
+          for v in 36.1.0 35.0.0 34.0.0 33.0.2 32.0.0 31.0.0 30.0.3; do
+            if [ -f "$ANDROID_SDK_ROOT/build-tools/$v/aidl" ]; then
+              echo "✅ AIDL encontrado em build-tools/$v"
+              AIDL_PATH="$ANDROID_SDK_ROOT/build-tools/$v"
+              echo "ANDROID_BUILD_TOOLS_VERSION=$v" >> $GITHUB_ENV
+              break
+            fi
+          done
+          if [ -z "$AIDL_PATH" ]; then
+            echo "❌ Nenhuma versão válida do AIDL foi encontrada."
             exit 1
           fi
 
-      - name: Corrigir buildozer.spec (forçar versão do SDK)
+      - name: Corrigir buildozer.spec (SDK e Build Tools)
         run: |
           if grep -q "android.sdk_path" buildozer.spec; then
             sed -i "s|android.sdk_path = .*|android.sdk_path = $HOME/android-sdk|" buildozer.spec
           else
             echo "android.sdk_path = $HOME/android-sdk" >> buildozer.spec
+          fi
+          if grep -q "android.build_tools_version" buildozer.spec; then
+            sed -i "s|android.build_tools_version = .*|android.build_tools_version = $ANDROID_BUILD_TOOLS_VERSION|" buildozer.spec
+          else
+            echo "android.build_tools_version = $ANDROID_BUILD_TOOLS_VERSION" >> buildozer.spec
           fi
 
       - name: Preparar projeto
@@ -67,11 +87,17 @@ jobs:
           if [ -f "./analista_esportivo_app_package.zip" ]; then
             unzip -o analista_esportivo_app_package.zip
             echo "Pacote do app descompactado com sucesso!"
+          else
+            echo "Nenhum pacote ZIP encontrado, usando os arquivos diretos do repositório."
           fi
 
       - name: Construir APK com Buildozer
         run: |
-          buildozer android debug
+          buildozer android debug || {
+            echo "⚠️ Buildozer falhou uma vez, tentando limpar cache e reconstruir..."
+            buildozer android clean
+            buildozer android debug
+          }
 
       - name: Upload do APK
         uses: actions/upload-artifact@v4
