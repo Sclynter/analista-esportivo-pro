@@ -17,7 +17,7 @@ jobs:
       - name: Instalar dependências básicas
         run: |
           sudo apt update
-          sudo apt install -y python3 python3-pip git zip unzip
+          sudo apt install -y python3 python3-pip git zip unzip docker.io
 
       - name: Preparar projeto (descompactar se existir)
         run: |
@@ -30,11 +30,16 @@ jobs:
       - name: Desativar BuildKit globalmente
         run: |
           echo "🚫 Desativando BuildKit..."
-          echo 'DOCKER_BUILDKIT=0' | sudo tee -a /etc/environment
-          echo 'COMPOSE_DOCKER_CLI_BUILD=0' | sudo tee -a /etc/environment
+          echo "DOCKER_BUILDKIT=0" | sudo tee -a /etc/environment
+          echo "COMPOSE_DOCKER_CLI_BUILD=0" | sudo tee -a /etc/environment
+          export DOCKER_BUILDKIT=0
+          export COMPOSE_DOCKER_CLI_BUILD=0
           echo "✅ BuildKit desativado!"
 
       - name: Construir APK com Buildozer (Docker)
+        env:
+          DOCKER_BUILDKIT: 0
+          COMPOSE_DOCKER_CLI_BUILD: 0
         run: |
           docker run --rm -v "$(pwd)":/home/user/app kivy/buildozer:latest bash -c "
             cd /home/user/app &&
