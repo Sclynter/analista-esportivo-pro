@@ -1,4 +1,4 @@
-name: Build APK with Buildozer (Auto SDK + Licenças)
+name: Build APK with Buildozer (Otimizado)
 
 on:
   push:
@@ -20,54 +20,32 @@ jobs:
 
       - name: Instalar Buildozer e dependências Python
         run: |
-          python3 -m pip install --upgrade pip
-          pip install buildozer cython virtualenv
+          pip install --upgrade pip
+          pip install buildozer==1.2.0 cython
 
-      - name: Baixar e configurar Android Commandline Tools
+      # 🔄 Limpa cache antigo do Buildozer e SDK interno
+      - name: Limpar cache do Buildozer
         run: |
-          mkdir -p $HOME/android-sdk/cmdline-tools
-          cd $HOME/android-sdk/cmdline-tools
-          curl -o sdk-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip sdk-tools.zip
-          mv cmdline-tools latest
-          rm sdk-tools.zip
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          rm -rf .buildozer/
+          rm -rf ~/.buildozer/
+          echo "🧹 Cache do Buildozer limpo!"
 
-      - name: Aceitar licenças e instalar SDKs necessários
+      # ⚙️ Configura Android SDK e NDK modernos automaticamente
+      - name: Configurar Android SDK (ação oficial)
+        uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            build-tools;33.0.2
+            platforms;android-33
+            ndk;25.2.9519653
+
+      # 🧩 Corrige o caminho do SDK no buildozer.spec
+      - name: Corrigir buildozer.spec
         run: |
-          export ANDROID_SDK_ROOT=$HOME/android-sdk
-          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
-          yes | sdkmanager --licenses || true
-          sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "platforms;android-34" "build-tools;33.0.0" "build-tools;33.0.1" "build-tools;34.0.0" "build-tools;35.0.0" "build-tools;36.0.0" || true
+          sed -i "s|android.sdk_path = .*|android.sdk_path = $ANDROID_SDK_ROOT|" buildozer.spec || echo "android.sdk_path = $ANDROID_SDK_ROOT" >> buildozer.spec
+          echo "✅ Caminho do SDK ajustado: $ANDROID_SDK_ROOT"
 
-      - name: Detectar automaticamente o AIDL (busca completa)
-        run: |
-          export ANDROID_SDK_ROOT=$HOME/android-sdk
-          echo "🔍 Procurando arquivo 'aidl' em todo o SDK..."
-          AIDL_PATH=$(find $ANDROID_SDK_ROOT -type f -name "aidl" | head -n 1 || true)
-
-          if [ -z "$AIDL_PATH" ]; then
-            echo "❌ Nenhum arquivo 'aidl' encontrado no SDK."
-            echo "Conteúdo do diretório build-tools:"
-            ls -R $ANDROID_SDK_ROOT/build-tools || true
-            exit 1
-          else
-            echo "✅ AIDL encontrado em: $AIDL_PATH"
-            AIDL_VERSION=$(echo $AIDL_PATH | grep -oE 'build-tools/[^/]*' | cut -d'/' -f2)
-            echo "ANDROID_BUILD_TOOLS_VERSION=$AIDL_VERSION" >> $GITHUB_ENV
-            echo "✅ Versão detectada: $AIDL_VERSION"
-          fi
-
-      - name: Corrigir buildozer.spec (forçar caminho do SDK)
-        run: |
-          if grep -q "android.sdk_path" buildozer.spec; then
-            sed -i "s|android.sdk_path = .*|android.sdk_path = $HOME/android-sdk|" buildozer.spec
-          else
-            echo "android.sdk_path = $HOME/android-sdk" >> buildozer.spec
-          fi
-
+      # 📦 Descompacta o pacote do app
       - name: Preparar projeto
         run: |
           if [ -f "./analista_esportivo_app_package.zip" ]; then
@@ -75,10 +53,12 @@ jobs:
             echo "📦 Pacote do app descompactado com sucesso!"
           fi
 
+      # 🏗️ Constrói o APK
       - name: Construir APK com Buildozer
         run: |
           buildozer android debug
 
+      # 📤 Faz upload do APK gerado
       - name: Upload do APK
         uses: actions/upload-artifact@v4
         with:
