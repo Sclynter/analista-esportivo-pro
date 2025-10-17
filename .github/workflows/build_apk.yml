@@ -25,11 +25,12 @@ jobs:
             echo "📦 Pacote do app descompactado com sucesso!"
           fi
 
-      # 🐳 Usa o Buildozer oficial em Docker (com SDK e NDK já prontos)
+      # 🚀 Desativa o BuildKit e usa a imagem oficial do Buildozer
       - name: Build APK com Buildozer (Docker)
         run: |
+          export DOCKER_BUILDKIT=0
           docker run --rm -v "$(pwd)":/home/user/app \
-            kivy/buildozer \
+            kivy/buildozer:latest \
             buildozer android debug
 
       - name: Upload do APK
