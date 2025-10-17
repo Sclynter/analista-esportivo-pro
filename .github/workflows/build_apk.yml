@@ -23,30 +23,35 @@ jobs:
           pip install --upgrade pip
           pip install buildozer==1.2.0 cython virtualenv
 
-      # Limpa possíveis caches antigos do Buildozer e SDK
+      # Limpa possíveis caches antigos
       - name: Limpar cache do Buildozer
         run: |
           rm -rf .buildozer
           rm -rf ~/.buildozer
           rm -rf $HOME/android-sdk
 
-      # Instalação automática e oficial do Android SDK + NDK
+      # Instalação oficial do Android SDK e NDK
       - name: Configurar Android SDK (ação oficial)
         uses: android-actions/setup-android@v3
         with:
           packages: |
-            build-tools;33.0.2
-            platforms;android-33
             platform-tools
+            platforms;android-33
+            build-tools;33.0.2
             ndk;25.2.9519653
 
-      # Garante que o caminho do SDK será o mesmo usado pelo Buildozer
+      # Aceita todas as licenças do SDK (correção do seu erro)
+      - name: Aceitar licenças do Android SDK
+        run: |
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      # Corrige o buildozer.spec
       - name: Corrigir buildozer.spec
         run: |
           sed -i "s|android.sdk_path = .*|android.sdk_path = /usr/local/lib/android/sdk|" buildozer.spec || echo "android.sdk_path = /usr/local/lib/android/sdk" >> buildozer.spec
           sed -i "s|android.ndk_path = .*|android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653|" buildozer.spec || echo "android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653" >> buildozer.spec
 
-      # Descompacta o projeto, se for enviado em ZIP
+      # Descompacta o projeto, se necessário
       - name: Preparar projeto
         run: |
           if [ -f "./analista_esportivo_app_package.zip" ]; then
