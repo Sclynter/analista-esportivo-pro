@@ -19,6 +19,7 @@ android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 # Caminhos fixos para o ambiente do GitHub
 android.sdk_path = /home/runner/android/sdk
 android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653
+android.accept_sdk_license = True
 
 log_level = 2
 warn_on_root = 1
