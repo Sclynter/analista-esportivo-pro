@@ -17,9 +17,9 @@ jobs:
           mkdir -p /home/runner/android/sdk
           cd /home/runner/android/sdk
           wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools-linux-9477386_latest.zip
+          unzip -q commandlinetools-linux-9477386_latest.zip -d /home/runner/android/sdk/
           mkdir -p /home/runner/android/sdk/cmdline-tools/latest
-          mv cmdline-tools/* /home/runner/android/sdk/cmdline-tools/latest/
+          mv /home/runner/android/sdk/cmdline-tools/* /home/runner/android/sdk/cmdline-tools/latest/
           yes | /home/runner/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
           /home/runner/android/sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
