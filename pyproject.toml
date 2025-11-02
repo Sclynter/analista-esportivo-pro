@@ -1,0 +1,12 @@
+[tool.briefcase]
+project_name = "AnalistaEsportivo"
+formal_name = "Analista Esportivo Pro"
+bundle = "com.analista.esportivo"
+version = "0.1.0"
+
+[tool.briefcase.app.analista_esportivo]
+formal_name = "Analista Esportivo Pro"
+app_name = "analista_esportivo"
+sources = ["src/analista_esportivo"]
+icon = "assets/icon.png"
+requires = ["pandas","requests"]
