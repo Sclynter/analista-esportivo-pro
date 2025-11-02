@@ -21,13 +21,11 @@ jobs:
       - name: Install system dependencies (Fixing Gettext and Build Tools)
         run: |
           sudo apt update
-          # Dependências básicas e de compilação
+          # Dependências básicas e de compilação para resolver o erro 'autopoint'
           sudo apt install -y zip unzip openjdk-17-jdk python3-pip python3-setuptools python3-wheel libffi-dev libssl-dev git libtool automake autoconf pkg-config build-essential libltdl-dev
-          
-          # Instalando GETTEXT para resolver o erro "autopoint"
           sudo apt install -y gettext
 
-          # Instala libtool via pip (tentativa de forçar o PATH)
+          # Instala libtool via pip
           pip install libtool
 
       - name: Install Buildozer and Cython
@@ -56,14 +54,12 @@ jobs:
           mkdir -p $ANDROID_HOME/tools/bin
           ln -s $ANDROID_HOME/cmdline-tools/latest/bin/* $ANDROID_HOME/tools/bin/
 
-      - name: Build APK (Com limpeza forçada antes do build)
+      - name: Build APK
         run: |
           export TERM=dumb 
           export ANDROID_HOME=$HOME/android/sdk
           export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
           export PATH=$ANDROID_HOME/platform-tools:$PATH
           
-          # Limpamos o cache e os artefatos do P4A antes de construir
-          buildozer android clean
-          
+          # Comando 'buildozer android clean' removido para evitar FileNotFoundError
           buildozer -v android debug
