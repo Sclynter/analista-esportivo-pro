@@ -17,16 +17,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            python3-pip python3-venv openjdk-17-jdk unzip zip git \
+            python3-pip python3-venv openjdk-17-jdk unzip zip git wget \
             libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev \
-            libtinfo5 libncurses5
+            libtinfo6 libncurses6
           python3 -m pip install --upgrade pip setuptools wheel
 
       - name: Install Buildozer and Cython
         run: |
           pip install --upgrade buildozer==1.5.0 cython==0.29.37 virtualenv
 
-      - name: Setup Android SDK
+      - name: Setup Android SDK and NDK
         run: |
           export ANDROID_HOME=$HOME/android-sdk
           mkdir -p $ANDROID_HOME/cmdline-tools
@@ -58,3 +58,4 @@ jobs:
           path: |
             bin/*.apk
             bin/*.aab
+            bin/*
