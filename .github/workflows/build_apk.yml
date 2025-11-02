@@ -2,29 +2,23 @@ name: Build APK with Buildozer
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build-apk:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - uses: actions/checkout@v4
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y zip unzip openjdk-17-jdk adb python3-venv libffi-dev libssl-dev libsqlite3-dev
-          sudo apt-get install -y libpng-dev libjpeg-dev zlib1g-dev autoconf automake libtool
+          sudo apt-get install -y python3-pip python3-venv openjdk-17-jdk unzip zip git \
+            libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev
 
-      - name: Set up Android SDK
+      - name: Setup Android SDK
         run: |
           sudo mkdir -p /usr/local/lib/android/sdk/cmdline-tools/latest
           cd /usr/local/lib/android/sdk/cmdline-tools/latest
@@ -36,21 +30,37 @@ jobs:
           sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-      - name: Set environment variables
+      - name: Configure environment variables
         run: |
           echo "ANDROIDSDK=/usr/local/lib/android/sdk" >> $GITHUB_ENV
           echo "ANDROIDNDK=/usr/local/lib/android/sdk/ndk/25.2.9519653" >> $GITHUB_ENV
           echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
           echo "PATH=/usr/local/lib/android/sdk/platform-tools:/usr/local/lib/android/sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Create virtual environment and install Buildozer
+      - name: Setup Python environment and Buildozer
         run: |
           python3 -m venv .venv
           source .venv/bin/activate
-          pip install --upgrade pip
-          pip install buildozer cython
+          pip install --upgrade pip setuptools wheel
+          pip install buildozer==1.5.0 cython==3.0.10 virtualenv
 
-      - name: Build APK
+      - name: Fix distutils for Python 3.12+
+        run: |
+          source .venv/bin/activate
+          pip install setuptools==68.0.0
+
+      - name: Build APK with Buildozer
+        env:
+          ANDROIDSDK: ${{ env.ANDROIDSDK }}
+          ANDROIDNDK: ${{ env.ANDROIDNDK }}
         run: |
           source .venv/bin/activate
           buildozer android debug
+
+      - name: Upload APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-artifacts
+          path: |
+            bin/*.apk
+            bin/*.aab
