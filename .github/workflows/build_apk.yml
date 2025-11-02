@@ -22,8 +22,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y zip unzip adb python3-venv libffi-dev libssl-dev libsqlite3-dev
-          sudo apt-get install -y libpng-dev libjpeg-dev zlib1g-dev autoconf automake libtool build-essential
+          sudo apt-get install -y zip unzip adb python3-venv libffi-dev libssl-dev libsqlite3-dev \
+            libpng-dev libjpeg-dev zlib1g-dev autoconf automake libtool build-essential
 
       - name: Install Buildozer and Cython
         run: |
@@ -38,24 +38,24 @@ jobs:
           cd $ANDROID_HOME_DIR/cmdline-tools
           
           echo "📦 Baixando Android Command Line Tools..."
-          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
-          unzip -o cmdtools.zip
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
+          unzip -q cmdtools.zip -d latest
           rm cmdtools.zip
 
           echo "✅ Instalando SDKs e NDK..."
-          yes | ./bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR --licenses || true
-          ./bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR --update || true
-          ./bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR \
+          yes | $ANDROID_HOME_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR --licenses || true
+          $ANDROID_HOME_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR --update || true
+          $ANDROID_HOME_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR \
             "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
           echo "📂 Corrigindo caminho esperado pelo Buildozer..."
           sudo mkdir -p /usr/local/lib/android/sdk/tools/bin
-          sudo ln -sf $ANDROID_HOME_DIR/cmdline-tools/bin/sdkmanager /usr/local/lib/android/sdk/tools/bin/sdkmanager
+          sudo ln -sf $ANDROID_HOME_DIR/cmdline-tools/latest/bin/sdkmanager /usr/local/lib/android/sdk/tools/bin/sdkmanager
 
           echo "ANDROID_HOME=$ANDROID_HOME_DIR" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME_DIR" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$ANDROID_HOME_DIR/ndk/25.2.9519653" >> $GITHUB_ENV
-          echo "PATH=$ANDROID_HOME_DIR/platform-tools:$ANDROID_HOME_DIR/cmdline-tools/bin:$PATH" >> $GITHUB_ENV
+          echo "PATH=$ANDROID_HOME_DIR/platform-tools:$ANDROID_HOME_DIR/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
 
       - name: Build APK (Verbose)
         run: |
@@ -64,7 +64,7 @@ jobs:
           export ANDROIDAPI=33
           export ANDROIDMINAPI=21
           export JAVA_HOME=$JAVA_HOME_17_X64
-          export PATH=$ANDROIDSDK/platform-tools:$ANDROIDSDK/cmdline-tools/bin:$PATH
+          export PATH=$ANDROIDSDK/platform-tools:$ANDROIDSDK/cmdline-tools/latest/bin:$PATH
           echo "🔧 Iniciando build com Buildozer..."
           buildozer -v android debug
 
