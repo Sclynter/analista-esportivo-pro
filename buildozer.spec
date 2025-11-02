@@ -11,15 +11,15 @@ orientation = portrait
 icon.filename = assets/icon.png
 
 android.api = 33
-# MUDANÇA CRÍTICA: Aumentado para 24 para resolver problemas de compilação de pandas/lxml.
+# MANTENHA ESTE VALOR: Necessário para pacotes modernos.
 android.minapi = 24
 android.archs = armeabi-v7a
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 
-# O ANDROID_HOME é definido no workflow do GitHub Actions.
-android.accept_sdk_license = True
+# FIX CRÍTICO: Força o uso da branch P4A mais estável para evitar o erro 'autopoint' na compilação do lxml/pandas.
+p4a.branch = develop
 
-# Isso pode ajudar com dependências complexas.
+android.accept_sdk_license = True
 p4a_ignore_setup_py = True
 
 log_level = 2
