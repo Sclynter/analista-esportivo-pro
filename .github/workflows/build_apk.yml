@@ -18,12 +18,14 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install system dependencies
+      - name: Install system dependencies (Fixing Autopoint/Gettext)
         run: |
           sudo apt update
-          # Dependências que resolvem os erros 'LT_SYS_SYMBOL_USCORE' e 'autopoint'
-          # 'gettext' é crucial para o Buildozer/Autoreconf
-          sudo apt install -y zip unzip openjdk-17-jdk python3-pip python3-setuptools python3-wheel libffi-dev libssl-dev git libtool automake autoconf gettext pkg-config build-essential libltdl-dev
+          # Dependências básicas (LT_SYS_SYMBOL_USCORE)
+          sudo apt install -y zip unzip openjdk-17-jdk python3-pip python3-setuptools python3-wheel libffi-dev libssl-dev git libtool automake autoconf pkg-config build-essential libltdl-dev
+          
+          # Instalando GETTEXT separadamente para garantir que seja encontrado (Fix Autopoint)
+          sudo apt install -y gettext
 
       - name: Install Buildozer and Cython
         run: |
@@ -43,7 +45,7 @@ jobs:
           export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
           
           # Aceita licenças e instala as plataformas necessárias
-          yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses
+          echo 'y' | sdkmanager --sdk_root=$ANDROID_HOME --licenses
           sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
           
           # Cria link simbólico para compatibilidade com Buildozer
@@ -51,9 +53,13 @@ jobs:
           ln -s $ANDROID_HOME/cmdline-tools/latest/bin/* $ANDROID_HOME/tools/bin/
 
       - name: Build APK
-        # Exporta as variáveis de ambiente necessárias e executa o buildozer
+        # Limpa builds anteriores e executa o buildozer
         run: |
+          export TERM=dumb 
           export ANDROID_HOME=$HOME/android/sdk
           export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
           export PATH=$ANDROID_HOME/platform-tools:$PATH
+          
+          # Limpeza de artefatos antigos antes de tentar o build
+          buildozer android clean
           buildozer -v android debug
