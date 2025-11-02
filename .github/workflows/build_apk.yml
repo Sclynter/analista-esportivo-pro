@@ -8,30 +8,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repositório
         uses: actions/checkout@v4
+
+      - name: Configurar Python e dependências
+        run: |
+          sudo apt update
+          sudo apt install -y python3-pip zip unzip openjdk-17-jdk
+          pip install --upgrade pip
+          pip install buildozer cython virtualenv
 
       - name: Configurar ambiente Java e Android SDK
         run: |
           export JAVA_HOME=$JAVA_HOME_17_X64
-          mkdir -p /home/runner/android/sdk
-          cd /home/runner/android/sdk
+          mkdir -p /home/runner/android/sdk/cmdline-tools
+          cd /home/runner/android/sdk/cmdline-tools
           wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools-linux-9477386_latest.zip -d /home/runner/android/sdk/
-          mkdir -p /home/runner/android/sdk/cmdline-tools/latest
-          mv /home/runner/android/sdk/cmdline-tools/* /home/runner/android/sdk/cmdline-tools/latest/
+          unzip -q commandlinetools-linux-9477386_latest.zip
+          mv cmdline-tools latest
           yes | /home/runner/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
           /home/runner/android/sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-      - name: Instalar dependências do sistema
+      - name: Configurar variáveis de ambiente
         run: |
-          sudo apt-get update
-          sudo apt-get install -y autoconf automake libtool pkg-config
-
-      - name: Instalar Buildozer e dependências Python
-        run: |
-          pip install --upgrade pip setuptools wheel cython buildozer
+          echo "export ANDROIDSDK=/home/runner/android/sdk" >> $GITHUB_ENV
+          echo "export ANDROIDNDK=/home/runner/android/sdk/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "export ANDROIDAPI=33" >> $GITHUB_ENV
+          echo "export ANDROIDMINAPI=21" >> $GITHUB_ENV
 
       - name: Compilar APK com Buildozer
         run: |
           buildozer android debug
+
+      - name: Fazer upload do APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-apk
+          path: bin/*.apk
