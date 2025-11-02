@@ -21,13 +21,16 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install -y zip unzip openjdk-17-jdk python3-pip python3-setuptools python3-wheel libffi-dev libssl-dev git
+          # Adicionando libtool, automake, autoconf para resolver o erro 'LT_SYS_SYMBOL_USCORE'
+          sudo apt install -y zip unzip openjdk-17-jdk python3-pip python3-setuptools python3-wheel libffi-dev libssl-dev git libtool automake autoconf pkg-config build-essential libltdl-dev
 
       - name: Install Buildozer and Cython
         run: |
           pip install --user buildozer Cython
 
       - name: Set up Android SDK and NDK
+        # Esta etapa foi simplificada para deixar o buildozer gerenciar a maior parte do setup,
+        # focando apenas na instalação do sdkmanager.
         run: |
           mkdir -p $HOME/android/sdk/cmdline-tools
           cd $HOME/android/sdk/cmdline-tools
@@ -38,16 +41,19 @@ jobs:
           export ANDROID_HOME=$HOME/android/sdk
           export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
           
+          # Aceita licenças e instala as plataformas necessárias
           yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses
           sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
           
-          # Corrige compatibilidade com Buildozer
+          # Corrige compatibilidade com Buildozer (link simbólico necessário para versões antigas do buildozer)
           mkdir -p $ANDROID_HOME/tools/bin
           ln -s $ANDROID_HOME/cmdline-tools/latest/bin/* $ANDROID_HOME/tools/bin/
 
       - name: Build APK
+        # Exporta as variáveis de ambiente necessárias e executa o buildozer
         run: |
           export ANDROID_HOME=$HOME/android/sdk
+          # Remove caminhos fixos que você tinha para o NDK e SDK, pois o buildozer e o ANDROID_HOME agora gerenciam isso.
           export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
           export PATH=$ANDROID_HOME/platform-tools:$PATH
           buildozer -v android debug
