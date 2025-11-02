@@ -12,14 +12,16 @@ icon.filename = assets/icon.png
 
 android.api = 33
 android.minapi = 21
-android.ndk = 25b
 android.archs = armeabi-v7a
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 
-# Caminhos fixos para o ambiente do GitHub
-android.sdk_path = /home/runner/android/sdk
-android.ndk_path = /usr/local/lib/android/sdk/ndk/25.2.9519653
+# Removidos caminhos fixos para SDK e NDK.
+# O ANDROID_HOME é definido no workflow do GitHub Actions e o Buildozer irá usá-lo.
 android.accept_sdk_license = True
+
+# Usado para ignorar setup.py em bibliotecas que o p4a já possui receitas.
+# Isso pode ajudar com dependências complexas como pandas.
+p4a_ignore_setup_py = True
 
 log_level = 2
 warn_on_root = 1
