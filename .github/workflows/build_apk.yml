@@ -8,50 +8,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y unzip wget git openjdk-17-jdk python3-pip libffi-dev libssl-dev libsqlite3-dev zlib1g-dev
-          python3 -m pip install --upgrade pip
-          pip install buildozer cython virtualenv
-
-      - name: Setup Android SDK and NDK
+      - name: Configurar ambiente Java e Android SDK
         run: |
           export JAVA_HOME=$JAVA_HOME_17_X64
-          ANDROID_HOME_DIR="$HOME/android/sdk"
-          mkdir -p $ANDROID_HOME_DIR/cmdline-tools
-          cd $ANDROID_HOME_DIR/cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
-          unzip -q cmdtools.zip -d latest_tmp
-          rm cmdtools.zip
-          mv latest_tmp/cmdline-tools/* latest_tmp/
-          rm -rf latest_tmp/cmdline-tools
-          mv latest_tmp latest
-          yes | $ANDROID_HOME_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR --licenses || true
-          $ANDROID_HOME_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR --update || true
-          $ANDROID_HOME_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR \
-            "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
-          sudo mkdir -p /usr/local/lib/android/sdk/tools/bin
-          sudo ln -sf $ANDROID_HOME_DIR/cmdline-tools/latest/bin/sdkmanager /usr/local/lib/android/sdk/tools/bin/sdkmanager
-          echo "ANDROID_HOME=$ANDROID_HOME_DIR" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME_DIR" >> $GITHUB_ENV
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME_DIR/ndk/25.2.9519653" >> $GITHUB_ENV
-          echo "PATH=$ANDROID_HOME_DIR/platform-tools:$ANDROID_HOME_DIR/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+          mkdir -p /home/runner/android/sdk
+          cd /home/runner/android/sdk
+          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip -q commandlinetools-linux-9477386_latest.zip
+          mkdir -p /home/runner/android/sdk/cmdline-tools/latest
+          mv cmdline-tools/* /home/runner/android/sdk/cmdline-tools/latest/
+          yes | /home/runner/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          /home/runner/android/sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-      - name: Build APK
+      - name: Instalar dependências do sistema
         run: |
-          buildozer -v android debug
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool pkg-config
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release
-          path: bin/*.apk
+      - name: Instalar Buildozer e dependências Python
+        run: |
+          pip install --upgrade pip setuptools wheel cython buildozer
+
+      - name: Compilar APK com Buildozer
+        run: |
+          buildozer android debug
