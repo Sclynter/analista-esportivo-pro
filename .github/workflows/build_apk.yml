@@ -24,6 +24,8 @@ jobs:
 
       - name: Install Buildozer and Cython
         run: |
+          pip install --upgrade pip setuptools wheel
+          pip install setuptools==68.2.2  # distutils compatível
           pip install --upgrade buildozer==1.5.0 cython==0.29.37 virtualenv
 
       - name: Setup Android SDK and NDK
@@ -48,7 +50,7 @@ jobs:
           python3 -m venv .venv
           source .venv/bin/activate
           pip install --upgrade pip
-          pip install buildozer cython
+          pip install buildozer cython setuptools==68.2.2
           buildozer android debug
 
       - name: Upload APK artifacts
