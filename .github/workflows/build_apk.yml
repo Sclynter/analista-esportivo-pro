@@ -13,14 +13,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Usaremos Java 17 para o ambiente geral (Gradle, etc)
+      # Java 17 é obrigatório agora para o SDK Manager novo
       - name: Set up Java 17
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install system dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y zip unzip adb python3-venv libffi-dev libssl-dev libsqlite3-dev
@@ -31,54 +31,39 @@ jobs:
           pip install --upgrade pip
           pip install buildozer cython
 
-      # --- ETAPA CRUCIAL: Instalar e Mudar para Java 8 temporariamente para o SDK Manager ---
-      - name: Install Java 8 for SDK Tools compatibility
+      - name: Setup Android SDK (Java 17 compatible)
         run: |
-          sudo apt-get install -y openjdk-8-jdk
-          echo "JAVA_HOME_8=/usr/lib/jvm/java-8-openjdk-amd64" >> $GITHUB_ENV
-
-      - name: Setup Android SDK using Java 8
-        run: |
-          export JAVA_HOME=$JAVA_HOME_8
+          export JAVA_HOME=$JAVA_HOME_17_X64
 
           ANDROID_HOME_DIR="$HOME/android/sdk"
           mkdir -p $ANDROID_HOME_DIR/cmdline-tools
           cd $ANDROID_HOME_DIR/cmdline-tools
           
-          # Baixar e extrair as ferramentas de linha de comando
+          echo "📦 Baixando Android Command Line Tools..."
           wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
           unzip -o cmdtools.zip
           rm cmdtools.zip
 
-          # Corrige estrutura recente: mover conteúdo interno se necessário
+          # Corrige layout duplicado cmdline-tools/cmdline-tools
           if [ -d "$ANDROID_HOME_DIR/cmdline-tools/cmdline-tools" ]; then
             mv $ANDROID_HOME_DIR/cmdline-tools/cmdline-tools/* $ANDROID_HOME_DIR/cmdline-tools/
           fi
 
-          # Verificar se o sdkmanager existe
-          if [ ! -f "$ANDROID_HOME_DIR/cmdline-tools/bin/sdkmanager" ]; then
-            echo "Erro: sdkmanager não encontrado!"
-            ls -R $ANDROID_HOME_DIR/cmdline-tools
-            exit 1
-          fi
-          
-          # Aceitar licenças e instalar componentes
+          echo "✅ SDK Manager encontrado:"
+          ls -l $ANDROID_HOME_DIR/cmdline-tools/bin/sdkmanager || echo "❌ sdkmanager não encontrado"
+
           yes | $ANDROID_HOME_DIR/cmdline-tools/bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR --licenses
           $ANDROID_HOME_DIR/cmdline-tools/bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR --update
           $ANDROID_HOME_DIR/cmdline-tools/bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR \
             "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-          # Corrige o caminho esperado pelo Buildozer (para compatibilidade antiga)
           mkdir -p $ANDROID_HOME_DIR/tools/bin
           ln -sf $ANDROID_HOME_DIR/cmdline-tools/bin/sdkmanager $ANDROID_HOME_DIR/tools/bin/sdkmanager
 
-          # Configurar variáveis de ambiente permanentes
           echo "ANDROID_HOME=$ANDROID_HOME_DIR" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME_DIR" >> $GITHUB_ENV
           echo "ANDROID_NDK=$ANDROID_HOME_DIR/ndk/25.2.9519653" >> $GITHUB_ENV
           echo "PATH=$ANDROID_HOME_DIR/platform-tools:$ANDROID_HOME_DIR/cmdline-tools/bin:$PATH" >> $GITHUB_ENV
-
-      # --- Fim da Etapa Crítica ---
 
       - name: Build APK
         run: |
