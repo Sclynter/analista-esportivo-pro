@@ -1,0 +1,60 @@
+name: Build APK with Buildozer
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pip python3-venv openjdk-17-jdk unzip zip git \
+            libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev \
+            libtinfo5 libncurses5
+          python3 -m pip install --upgrade pip setuptools wheel
+
+      - name: Install Buildozer and Cython
+        run: |
+          pip install --upgrade buildozer==1.5.0 cython==0.29.37 virtualenv
+
+      - name: Setup Android SDK
+        run: |
+          export ANDROID_HOME=$HOME/android-sdk
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          cd $ANDROID_HOME
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+          unzip -q tools.zip -d cmdline-tools
+          mv cmdline-tools/cmdline-tools cmdline-tools/latest
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME \
+            "platform-tools" "build-tools;34.0.0" "platforms;android-34" "ndk;26.1.10909125"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Build APK with Buildozer
+        env:
+          ANDROIDSDK: ${{ env.ANDROID_HOME }}
+          ANDROIDNDKVER: 26.1.10909125
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install buildozer cython
+          buildozer android debug
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-artifacts
+          path: |
+            bin/*.apk
+            bin/*.aab
