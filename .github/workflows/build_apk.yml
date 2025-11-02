@@ -2,68 +2,58 @@ name: Build APK with Buildozer
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - main
 
 jobs:
   build-apk:
+    # Usamos uma imagem que já tem muitas dependências base
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 1. Configurar Java 17 (Requisito moderno para o Android SDK)
+      - name: Set up Java 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 2. Instalar dependências do sistema
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            python3-pip python3-venv openjdk-17-jdk unzip zip git wget \
-            libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev \
-            libtinfo6 libncurses6
-          python3 -m pip install --upgrade pip setuptools wheel
+          # Removido sudo para ferramentas que serão instaladas pelo buildozer ou SDK
+          sudo apt-get install -y zip unzip adb python3-venv libffi-dev libssl-dev libsqlite3-dev libpng-dev libjpeg-dev zlib1g-dev autoconf automake libtool build-essential
 
+      # 3. Instalar Buildozer globalmente no ambiente (mais fácil de gerenciar)
       - name: Install Buildozer and Cython
         run: |
-          pip install --upgrade pip setuptools wheel
-          pip install setuptools==68.2.2
-          pip install --upgrade buildozer==1.5.0 cython==0.29.37 virtualenv
-
-      - name: Setup Android SDK and NDK
-        run: |
-          export ANDROID_HOME=$HOME/android-sdk
-          mkdir -p $ANDROID_HOME/cmdline-tools
-          cd $ANDROID_HOME
-          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
-          unzip -q tools.zip -d cmdline-tools
-          mv cmdline-tools/cmdline-tools cmdline-tools/latest
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME \
-            "platform-tools" "build-tools;34.0.0" "platforms;android-34" "ndk;25.2.9519653"
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
-
-          # 🧩 Corrige caminho legado do SDK para compatibilidade com Buildozer
-          sudo mkdir -p /usr/local/lib/android/sdk/tools/bin
-          sudo ln -s $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager /usr/local/lib/android/sdk/tools/bin/sdkmanager || true
-
-      - name: Build APK with Buildozer
-        env:
-          ANDROIDSDK: ${{ env.ANDROID_HOME }}
-          ANDROIDNDKVER: 25.2.9519653
-        run: |
-          python3 -m venv .venv
-          source .venv/bin/activate
           pip install --upgrade pip
-          pip install buildozer cython setuptools==68.2.2
-          # Corrige configuração antiga (android.arch)
-          sed -i 's/^android.arch =.*/android.archs = arm64-v8a/' buildozer.spec || true
+          pip install buildozer cython setuptools
+
+      # 4. Configurar Android SDK e NDK (Esta é a parte crucial corrigida)
+      # Usaremos a ação dedicada para garantir que os caminhos e permissões estejam corretos
+      - name: Setup Android SDK and NDK
+        uses: android-actions/setup-android@v3
+        with:
+          # Define a versão do SDK, NDK, etc.
+          android-version: 33
+          ndk-version: 25.2.9519653
+          # As variáveis de ambiente ANDROID_HOME e PATH serão configuradas automaticamente.
+
+      # 5. Build APK
+      - name: Build APK
+        # Agora o buildozer pode ser chamado diretamente porque as variáveis de ambiente foram configuradas
+        run: |
           buildozer android debug
 
-      - name: Upload APK artifacts
+      # 6. Upload do Artefato
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: apk-artifacts
-          path: |
-            bin/*.apk
-            bin/*.aab
-            bin/*
+          name: meu-aplicativo-android
+          # O buildozer salva na pasta bin/ por padrão
+          path: bin/*.apk
