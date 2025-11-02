@@ -2,65 +2,79 @@ name: Build APK with Buildozer
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - main
 
 jobs:
   build-apk:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Usaremos Java 17 para o ambiente geral (Gradle, etc)
+      - name: Set up Java 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip python3-venv openjdk-17-jdk unzip zip git \
-            libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev
+          # Incluído openjdk-8-jdk aqui para simplificar a instalação
+          sudo apt-get install -y zip unzip adb python3-venv libffi-dev libssl-dev libsqlite3-dev openjdk-8-jdk
+          sudo apt-get install -y libpng-dev libjpeg-dev zlib1g-dev autoconf automake libtool build-essential
 
-      - name: Setup Android SDK
+      - name: Install Buildozer and Cython
         run: |
-          sudo mkdir -p /usr/local/lib/android/sdk/cmdline-tools/latest
-          cd /usr/local/lib/android/sdk/cmdline-tools/latest
-          sudo wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
-          sudo unzip -o cmdtools.zip
-          sudo rm cmdtools.zip
-          yes | sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-          sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --update
-          sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
+          # Instalado globalmente para simplificar o uso no passo final
+          pip install --upgrade pip setuptools wheel
+          pip install buildozer cython
+
+      # --- ETAPA CRUCIAL: Configurar SDK usando Java 8 para evitar o erro "XmlSchema" e problemas de permissão ---
+      - name: Setup Android SDK using Java 8 compatibility
+        run: |
+          # Define JAVA_HOME para Java 8 apenas para este passo
+          export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+          
+          # Instala em $HOME para evitar problemas de permissão do sudo
+          ANDROID_HOME_DIR="$HOME/android/sdk"
+          mkdir -p $ANDROID_HOME_DIR/cmdline-tools/latest
+          cd $ANDROID_HOME_DIR/cmdline-tools/latest
+          
+          # Baixar e extrair as ferramentas de linha de comando
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
+          unzip -o cmdtools.zip
+          rm cmdtools.zip
+          
+          # Aceitar licenças e instalar componentes (usando Java 8)
+          yes | ./bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR --licenses
+          ./bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR --update
+          ./bin/sdkmanager --sdk_root=$ANDROID_HOME_DIR \
             "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
-      - name: Configure environment variables
-        run: |
-          echo "ANDROIDSDK=/usr/local/lib/android/sdk" >> $GITHUB_ENV
-          echo "ANDROIDNDK=/usr/local/lib/android/sdk/ndk/25.2.9519653" >> $GITHUB_ENV
-          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
-          echo "PATH=/usr/local/lib/android/sdk/platform-tools:/usr/local/lib/android/sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+          # Corrige o caminho esperado pelo Buildozer (cria o link simbólico necessário)
+          mkdir -p $ANDROID_HOME_DIR/tools/bin
+          ln -sf $ANDROID_HOME_DIR/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME_DIR/tools/bin/sdkmanager
 
-      - name: Setup Python environment and Buildozer
-        run: |
-          python3 -m venv .venv
-          source .venv/bin/activate
-          pip install --upgrade pip setuptools wheel
-          pip install buildozer==1.5.0 cython==3.0.10 virtualenv
+          # Configurar variáveis de ambiente permanentes para os próximos passos
+          echo "ANDROID_HOME=$ANDROID_HOME_DIR" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME_DIR" >> $GITHUB_ENV
+          echo "ANDROID_NDK=$ANDROID_HOME_DIR/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "PATH=$ANDROID_HOME_DIR/platform-tools:$ANDROID_HOME_DIR/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+      # --- Fim da Etapa Crítica ---
 
-      - name: Fix distutils for Python 3.12+
-        run: |
-          source .venv/bin/activate
-          pip install setuptools==68.0.0
+      # A partir daqui, o JAVA_HOME padrão volta para o Java 17.
 
-      - name: Build APK with Buildozer
-        env:
-          ANDROIDSDK: ${{ env.ANDROIDSDK }}
-          ANDROIDNDK: ${{ env.ANDROIDNDK }}
+      - name: Build APK
         run: |
-          source .venv/bin/activate
+          # Apenas execute o buildozer, as variáveis de ambiente já estão configuradas
           buildozer android debug
 
-      - name: Upload APK Artifacts
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: apk-artifacts
-          path: |
-            bin/*.apk
-            bin/*.aab
+          name: meu-aplicativo-android
+          path: bin/*.apk
