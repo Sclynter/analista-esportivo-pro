@@ -27,17 +27,23 @@ jobs:
         run: |
           pip install --user buildozer Cython
 
-      - name: Set up Android SDK
+      - name: Set up Android SDK and NDK
         run: |
           mkdir -p $HOME/android/sdk/cmdline-tools
           cd $HOME/android/sdk/cmdline-tools
           curl -o commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
           unzip -q commandlinetools.zip
           mv cmdline-tools latest
+          
           export ANDROID_HOME=$HOME/android/sdk
           export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+          
           yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses
           sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+          
+          # Corrige compatibilidade com Buildozer
+          mkdir -p $ANDROID_HOME/tools/bin
+          ln -s $ANDROID_HOME/cmdline-tools/latest/bin/* $ANDROID_HOME/tools/bin/
 
       - name: Build APK
         run: |
