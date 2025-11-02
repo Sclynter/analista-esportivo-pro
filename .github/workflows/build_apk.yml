@@ -1,59 +1,33 @@
-name: Build APK with Buildozer
+name: Build Android Application
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  build-apk:
-    # Usamos uma imagem que já tem muitas dependências base
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      # 1. Configurar Java 17 (Requisito moderno para o Android SDK)
-      - name: Set up Java 17
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+    # Esta ação de terceiros (buildozer-action) configura automaticamente as versões corretas de Java, SDK e NDK.
+    - name: Build with Buildozer Action (Recommended Fix)
+      uses: ArtemSBulgakov/buildozer-action@v1
+      id: buildozer
+      with:
+        command: buildozer android debug
+        buildozer_version: stable
+        # A action detecta e usa Java 8 para as ferramentas antigas do SDK e Java 17 para o Gradle/Build Moderno
 
-      # 2. Instalar dependências do sistema
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          # Removido sudo para ferramentas que serão instaladas pelo buildozer ou SDK
-          sudo apt-get install -y zip unzip adb python3-venv libffi-dev libssl-dev libsqlite3-dev libpng-dev libjpeg-dev zlib1g-dev autoconf automake libtool build-essential
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: package
+        path: ${{ steps.buildozer.outputs.filename }}
 
-      # 3. Instalar Buildozer globalmente no ambiente (mais fácil de gerenciar)
-      - name: Install Buildozer and Cython
-        run: |
-          pip install --upgrade pip
-          pip install buildozer cython setuptools
-
-      # 4. Configurar Android SDK e NDK (Esta é a parte crucial corrigida)
-      # Usaremos a ação dedicada para garantir que os caminhos e permissões estejam corretos
-      - name: Setup Android SDK and NDK
-        uses: android-actions/setup-android@v3
-        with:
-          # Define a versão do SDK, NDK, etc.
-          android-version: 33
-          ndk-version: 25.2.9519653
-          # As variáveis de ambiente ANDROID_HOME e PATH serão configuradas automaticamente.
-
-      # 5. Build APK
-      - name: Build APK
-        # Agora o buildozer pode ser chamado diretamente porque as variáveis de ambiente foram configuradas
-        run: |
-          buildozer android debug
-
-      # 6. Upload do Artefato
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: meu-aplicativo-android
-          # O buildozer salva na pasta bin/ por padrão
-          path: bin/*.apk
