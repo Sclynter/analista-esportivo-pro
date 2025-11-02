@@ -31,8 +31,14 @@ jobs:
           unzip -q commandlinetools-linux-9477386_latest.zip
           rm commandlinetools-linux-9477386_latest.zip
           mv cmdline-tools latest
-          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+          export PATH=$PATH:/usr/local/lib/android/sdk/cmdline-tools/latest/bin
+          yes | sdkmanager --sdk_root=/usr/local/lib/android/sdk --licenses || true
+          sdkmanager --sdk_root=/usr/local/lib/android/sdk \
+            "platform-tools" \
+            "platforms;android-33" \
+            "build-tools;33.0.2" \
+            "ndk;25.2.9519653"
+          yes | sdkmanager --sdk_root=/usr/local/lib/android/sdk --licenses
 
       - name: Set environment variables
         run: |
