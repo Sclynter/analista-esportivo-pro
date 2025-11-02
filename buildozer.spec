@@ -11,16 +11,15 @@ orientation = portrait
 icon.filename = assets/icon.png
 
 android.api = 33
-android.minapi = 21
+# MUDANÇA CRÍTICA: Aumentado para 24 para resolver problemas de compilação de pandas/lxml.
+android.minapi = 24
 android.archs = armeabi-v7a
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 
-# Removidos caminhos fixos para SDK e NDK.
-# O ANDROID_HOME é definido no workflow do GitHub Actions e o Buildozer irá usá-lo.
+# O ANDROID_HOME é definido no workflow do GitHub Actions.
 android.accept_sdk_license = True
 
-# Usado para ignorar setup.py em bibliotecas que o p4a já possui receitas.
-# Isso pode ajudar com dependências complexas como pandas.
+# Isso pode ajudar com dependências complexas.
 p4a_ignore_setup_py = True
 
 log_level = 2
