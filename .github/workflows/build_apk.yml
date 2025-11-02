@@ -1,33 +1,56 @@
-name: Build Android Application
+name: Build APK with Buildozer
 
 on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    # Esta ação de terceiros (buildozer-action) configura automaticamente as versões corretas de Java, SDK e NDK.
-    - name: Build with Buildozer Action (Recommended Fix)
-      uses: ArtemSBulgakov/buildozer-action@v1
-      id: buildozer
-      with:
-        command: buildozer android debug
-        buildozer_version: stable
-        # A action detecta e usa Java 8 para as ferramentas antigas do SDK e Java 17 para o Gradle/Build Moderno
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: package
-        path: ${{ steps.buildozer.outputs.filename }}
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip unzip openjdk-17-jdk adb python3-venv libffi-dev libssl-dev libsqlite3-dev
+          sudo apt-get install -y libpng-dev libjpeg-dev zlib1g-dev autoconf automake libtool
 
+      - name: Set up Android SDK
+        run: |
+          sudo mkdir -p /usr/local/lib/android/sdk/cmdline-tools/latest
+          cd /usr/local/lib/android/sdk/cmdline-tools/latest
+          sudo wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
+          sudo unzip -o cmdtools.zip
+          sudo rm cmdtools.zip
+          yes | sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --update
+          sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+
+      - name: Set environment variables
+        run: |
+          echo "ANDROIDSDK=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          echo "ANDROIDNDK=/usr/local/lib/android/sdk/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          echo "PATH=/usr/local/lib/android/sdk/platform-tools:/usr/local/lib/android/sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Create virtual environment and install Buildozer
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install buildozer cython
+
+      - name: Build APK
+        run: |
+          source .venv/bin/activate
+          buildozer android debug
