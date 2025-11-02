@@ -18,21 +18,23 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install system dependencies (Fixing Gettext)
+      - name: Install system dependencies (Fixing Gettext and Build Tools)
         run: |
           sudo apt update
-          # Dependências que resolvem 'LT_SYS_SYMBOL_USCORE'
+          # Dependências básicas e de compilação
           sudo apt install -y zip unzip openjdk-17-jdk python3-pip python3-setuptools python3-wheel libffi-dev libssl-dev git libtool automake autoconf pkg-config build-essential libltdl-dev
           
           # Instalando GETTEXT para resolver o erro "autopoint"
           sudo apt install -y gettext
+
+          # Instala libtool via pip (tentativa de forçar o PATH)
+          pip install libtool
 
       - name: Install Buildozer and Cython
         run: |
           pip install --user buildozer Cython
 
       - name: Set up Android SDK and NDK (Usando NDK R23b - Mais Estável)
-        # Instala o command line tools e configura o ambiente Android
         run: |
           mkdir -p $HOME/android/sdk/cmdline-tools
           cd $HOME/android/sdk/cmdline-tools
@@ -47,19 +49,21 @@ jobs:
           # Aceita licenças
           echo 'y' | sdkmanager --sdk_root=$ANDROID_HOME --licenses
           
-          # 🚨 USANDO NDK 23.1.7779620 (r23b) para compatibilidade com Buildozer
+          # USANDO NDK 23.1.7779620 (r23b) para máxima compatibilidade
           sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;23.1.7779620"
           
           # Cria link simbólico para compatibilidade com Buildozer
           mkdir -p $ANDROID_HOME/tools/bin
           ln -s $ANDROID_HOME/cmdline-tools/latest/bin/* $ANDROID_HOME/tools/bin/
 
-      - name: Build APK
-        # Exporta variáveis e executa o buildozer (comando 'clean' removido)
+      - name: Build APK (Com limpeza forçada antes do build)
         run: |
           export TERM=dumb 
           export ANDROID_HOME=$HOME/android/sdk
           export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
           export PATH=$ANDROID_HOME/platform-tools:$PATH
+          
+          # Limpamos o cache e os artefatos do P4A antes de construir
+          buildozer android clean
           
           buildozer -v android debug
