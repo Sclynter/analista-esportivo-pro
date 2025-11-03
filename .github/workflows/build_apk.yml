@@ -14,18 +14,21 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python 3.10
-        # AQUI estava o erro: era 'actions:setup-python@v5'
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      # Instala Buildozer e Cython para gerenciar o processo de compilação.
-      - name: Install Buildozer and Cython
+      # Passo ÚNICO: Instalar Buildozer, Cython e executar o Build
+      - name: Install dependencies and Build APK
         run: |
-          pip install --user --upgrade buildozer cython
-
-      # Executa o build do Android de forma simples.
-      - name: Build APK
-        run: |
-          export TERM=dumb 
+          # 1. Instala Buildozer e Cython no diretório de usuário (o mais estável)
+          pip install --user --upgrade buildozer Cython
+          
+          # 2. Adiciona o diretório local do pip (--user) ao PATH.
+          # Isso é CRÍTICO para que o shell encontre o comando 'buildozer'.
+          # O Python 3.10+ instala em ~/.local/bin.
+          export PATH="$HOME/.local/bin:$PATH"
+          
+          # 3. Executa o build com o Buildozer.
+          echo "Iniciando a compilação do Android..."
           buildozer android debug
