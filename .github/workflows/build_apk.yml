@@ -13,53 +13,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Python 3.10
+        uses: actions:setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install system dependencies (Fixing Gettext and Build Tools)
-        run: |
-          sudo apt update
-          # Dependências básicas e de compilação para resolver o erro 'autopoint'
-          sudo apt install -y zip unzip openjdk-17-jdk python3-pip python3-setuptools python3-wheel libffi-dev libssl-dev git libtool automake autoconf pkg-config build-essential libltdl-dev
-          sudo apt install -y gettext
-
-          # Instala libtool via pip
-          pip install libtool
-
+      # Instala Buildozer e Cython para gerenciar o processo de compilação.
       - name: Install Buildozer and Cython
         run: |
-          pip install --user buildozer Cython
+          pip install --user --upgrade buildozer cython
 
-      - name: Set up Android SDK and NDK (Usando NDK R23b - Mais Estável)
-        run: |
-          mkdir -p $HOME/android/sdk/cmdline-tools
-          cd $HOME/android/sdk/cmdline-tools
-          # Baixa a versão mais recente do command line tools
-          curl -o commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools.zip
-          mv cmdline-tools latest
-          
-          export ANDROID_HOME=$HOME/android/sdk
-          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
-          
-          # Aceita licenças
-          echo 'y' | sdkmanager --sdk_root=$ANDROID_HOME --licenses
-          
-          # USANDO NDK 23.1.7779620 (r23b) para máxima compatibilidade
-          sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;23.1.7779620"
-          
-          # Cria link simbólico para compatibilidade com Buildozer
-          mkdir -p $ANDROID_HOME/tools/bin
-          ln -s $ANDROID_HOME/cmdline-tools/latest/bin/* $ANDROID_HOME/tools/bin/
-
+      # Executa o build do Android de forma simples.
       - name: Build APK
         run: |
           export TERM=dumb 
-          export ANDROID_HOME=$HOME/android/sdk
-          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
-          export PATH=$ANDROID_HOME/platform-tools:$PATH
-          
-          # Comando 'buildozer android clean' removido para evitar FileNotFoundError
-          buildozer -v android debug
+          buildozer android debug
