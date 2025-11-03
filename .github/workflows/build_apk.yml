@@ -18,22 +18,31 @@ jobs:
         with:
           python-version: '3.10'
           
-      # NOVO PASSO CRÍTICO: Instala as ferramentas de compilação C/C++ e dependências.
-      # Essencial para que o NDK e o Ant funcionem corretamente.
       - name: Install System Dependencies
         run: |
           sudo apt update
+          # Dependências essenciais para NDK, Ant e ferramentas de build C/C++
           sudo apt install -y build-essential libncurses-dev unzip zlib1g-dev
 
-      # Passo ÚNICO: Instalar Buildozer, Cython e executar o Build
       - name: Install dependencies and Build APK
         run: |
-          # 1. Instala Buildozer e Cython no diretório de usuário.
+          # 1. Instala Buildozer e Cython.
           pip install --user --upgrade buildozer Cython
           
-          # 2. Adiciona o diretório local do pip ao PATH (corrigindo "command not found").
+          # 2. Adiciona o diretório local do pip ao PATH.
           export PATH="$HOME/.local/bin:$PATH"
+          export TERM=dumb 
           
-          # 3. Executa o build com o Buildozer.
+          # 3. Executa o build. O APK será salvo em ./bin/
           echo "Iniciando a compilação do Android..."
           buildozer android debug
+          
+      # PASSO CRÍTICO FINAL: Faz o upload do APK para a seção 'Artifacts'.
+      # O Buildozer salva o APK no subdiretório 'bin/'.
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: analista-esportivo-apk
+          path: bin/*.apk
+          # Usa always() para garantir o upload, mesmo que o build anterior tenha erros leves no final.
+        if: always()
